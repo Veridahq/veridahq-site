@@ -1,0 +1,24 @@
+{
+  "name": "veridahq",
+  "version": "1.0.0",
+  "description": "AI-powered NDIS compliance monitoring platform",
+  "private": true,
+  "scripts": {
+    "dev": "python -m http.server 3000 --directory .",
+    "build": "echo 'Static site - no build needed'",
+    "start": "npm run build && npm run dev"
+  },
+  "keywords": [
+    "ndis",
+    "compliance",
+    "audit",
+    "australiandisability",
+    "safeguards"
+  ],
+  "author": "Verida",
+  "license": "PROPRIETARY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/veridahq/verida.git"
+  }
+}

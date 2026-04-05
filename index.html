@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verida - AI-powered NDIS compliance monitoring. Never fail an audit again.">
+    <meta name="theme-color" content="#1B365D">
+    <title>Verida - Never Fail an NDIS Audit Again</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:%231B365D;stop-opacity:1' /><stop offset='100%' style='stop-color:%232A9D8F;stop-opacity:1' /></linearGradient></defs><rect width='100' height='100' fill='url(%23grad)' rx='20'/><path d='M50 25 L60 45 L42 45 L50 65 L35 45 L50 45 Z' fill='white'/></svg>" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-light">
+        <div class="navbar-container">
+            <div class="logo">
+                <div class="logo-icon">✓</div>
+                <span>Verida</span>
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#how-it-works" class="nav-link">How It Works</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+            </div>
+            <div class="nav-buttons">
+                <button class="btn-text" onclick="document.getElementById('loginModal').style.display='flex'">Login</button>
+                <button class="btn btn-primary btn-cta" onclick="document.getElementById('pilotModal').style.display='flex'">Start Free Pilot</button>
+            </div>
+            <button class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1 class="hero-title fade-in">Never Fail an NDIS Audit Again</h1>
+            <p class="hero-subtitle fade-in">AI-powered compliance monitoring that keeps your organisation audit-ready — without the admin burden</p>
+
+            <div class="hero-metrics fade-in">
+                <div class="metric-box">
+                    <div class="metric-label">Average Compliance Score</div>
+                    <div class="metric-value"><span id="complianceCounter">0</span>%</div>
+                    <div class="metric-detail">Sunrise Support Services</div>
+                </div>
+            </div>
+
+            <div class="hero-buttons fade-in">
+                <button class="btn btn-primary btn-large" onclick="document.getElementById('pilotModal').style.display='flex'">Start Free Pilot</button>
+                <button class="btn btn-secondary btn-large" onclick="window.location.href='app.html'">See How It Works</button>
+            </div>
+
+            <div class="social-proof fade-in">
+                <div class="proof-label">🤝 Trusted by NDIS providers across Australia</div>
+                <div class="proof-avatars">
+                    <div class="avatar">SS</div>
+                    <div class="avatar">CA</div>
+                    <div class="avatar">PS</div>
+                    <div class="avatar">+5</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Why Verida?</h2>
+            <p class="section-subtitle">Everything you need to stay compliant, with AI at your side</p>
+
+            <div class="features-grid">
+                <div class="feature-card slide-up">
+                    <div class="feature-icon">📊</div>
+                    <h3>Real-time Compliance Scoring</h3>
+                    <p>AI continuously monitors your documents against NDIS standards. Get instant visibility into compliance gaps before auditors do.</p>
+                    <ul class="feature-list">
+                        <li>Live compliance dashboard</li>
+                        <li>Automated document analysis</li>
+                        <li>Risk scoring by standard</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card slide-up">
+                    <div class="feature-icon">🔧</div>
+                    <h3>Gap Analysis & Remediation</h3>
+                    <p>Not just finding problems — Verida tells you exactly what to fix and prioritises by audit risk. Includes step-by-step remediation plans.</p>
+                    <ul class="feature-list">
+                        <li>Detailed gap reports</li>
+                        <li>Remediation roadmaps</li>
+                        <li>Priority-ranked findings</li>
+                    </ul>
+                </div>
+
+                <div class="feature-card slide-up">
+                    <div class="feature-icon">✅</div>
+                    <h3>Audit Readiness Dashboard</h3>
+                    <p>Know exactly how you'll score before the auditor arrives. Simulate an audit, preview findings, and show evidence in seconds.</p>
+                    <ul class="feature-list">
+                        <li>Pre-audit simulation</li>
+                        <li>Evidence library</li>
+                        <li>Audit trail logging</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="how-it-works">
+        <div class="container">
+            <h2 class="section-title">3 Steps to Audit Confidence</h2>
+            <p class="section-subtitle">From chaos to compliance in minutes, not months</p>
+
+            <div class="steps-container">
+                <div class="step slide-up">
+                    <div class="step-number">1</div>
+                    <h3>Upload Documents</h3>
+                    <p>Drop your policies, plans, and incident logs into Verida. No complex setup or training required.</p>
+                    <div class="step-icon">📤</div>
+                </div>
+
+                <div class="step-arrow">→</div>
+
+                <div class="step slide-up">
+                    <div class="step-number">2</div>
+                    <h3>AI Scans Standards</h3>
+                    <p>Our AI instantly analyses your documents against NDIS Participant Safeguards and Royal Commission findings.</p>
+                    <div class="step-icon">🤖</div>
+                </div>
+
+                <div class="step-arrow">→</div>
+
+                <div class="step slide-up">
+                    <div class="step-number">3</div>
+                    <h3>Stay Audit-Ready</h3>
+                    <p>Real-time compliance score, gap remediation plans, and mock audits. Never be caught unprepared.</p>
+                    <div class="step-icon">🎯</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <h2 class="section-title">Simple, Fair Pricing</h2>
+            <p class="section-subtitle">No per-seat fees. No surprise costs.</p>
+
+            <div class="pricing-toggle">
+                <span class="toggle-label">Monthly</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="billingToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label">Annual <span class="discount">Save 20%</span></span>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- Essentials Plan -->
+                <div class="pricing-card">
+                    <div class="plan-header">
+                        <h3 class="plan-name">Essentials</h3>
+                        <p class="plan-description">Perfect for small teams</p>
+                    </div>
+                    <div class="plan-price">
+                        <span class="currency">$</span>
+                        <span class="amount" data-monthly="49" data-annual="468">49</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <p class="plan-detail">1–10 participants • 1 Registration Group</p>
+                    <button class="btn btn-primary btn-block" onclick="document.getElementById('pilotModal').style.display='flex'">Start Free Pilot</button>
+                    <div class="divider-light"></div>
+                    <ul class="features-list">
+                        <li>✓ Core compliance dashboard</li>
+                        <li>✓ Unlimited staff users</li>
+                        <li>✓ Real-time compliance scoring</li>
+                        <li>✓ Document uploads (up to 1GB)</li>
+                        <li>✓ Basic gap analysis</li>
+                        <li>✗ Audit simulation</li>
+                        <li>✗ Advanced reports</li>
+                    </ul>
+                </div>
+
+                <!-- Growth Plan -->
+                <div class="pricing-card featured">
+                    <div class="badge">Most Popular</div>
+                    <div class="plan-header">
+                        <h3 class="plan-name">Growth</h3>
+                        <p class="plan-description">Best for growing providers</p>
+                    </div>
+                    <div class="plan-price">
+                        <span class="currency">$</span>
+                        <span class="amount" data-monthly="149" data-annual="1428">149</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <p class="plan-detail">11–100 participants • Up to 5 Registration Groups</p>
+                    <button class="btn btn-primary btn-block" onclick="document.getElementById('pilotModal').style.display='flex'">Start Free Pilot</button>
+                    <div class="divider-light"></div>
+                    <ul class="features-list">
+                        <li>✓ Everything in Essentials</li>
+                        <li>✓ Staff tracker & incident management</li>
+                        <li>✓ Detailed gap remediation plans</li>
+                        <li>✓ Document uploads (up to 5GB)</li>
+                        <li>✓ Audit readiness simulation</li>
+                        <li>✓ Monthly compliance reports</li>
+                        <li>✗ API integrations</li>
+                    </ul>
+                </div>
+
+                <!-- Scale Plan -->
+                <div class="pricing-card">
+                    <div class="plan-header">
+                        <h3 class="plan-name">Scale</h3>
+                        <p class="plan-description">Enterprise compliance</p>
+                    </div>
+                    <div class="plan-price">
+                        <span class="currency">$</span>
+                        <span class="amount" data-monthly="349" data-annual="3348">349</span>
+                        <span class="period">/month</span>
+                    </div>
+                    <p class="plan-detail">Unlimited participants • All Registration Groups</p>
+                    <button class="btn btn-primary btn-block" onclick="document.getElementById('pilotModal').style.display='flex'">Start Free Pilot</button>
+                    <div class="divider-light"></div>
+                    <ul class="features-list">
+                        <li>✓ Everything in Growth</li>
+                        <li>✓ API integrations</li>
+                        <li>✓ AI audit simulation</li>
+                        <li>✓ Dedicated CSM</li>
+                        <li>✓ Document uploads (unlimited)</li>
+                        <li>✓ Advanced analytics</li>
+                        <li>✓ Priority support</li>
+                    </ul>
+                </div>
+            </div>
+
+            <p class="pricing-footer">All plans include unlimited staff users. No per-seat fees. 3-month free pilot available for new customers.</p>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="testimonials">
+        <div class="container">
+            <h2 class="section-title">What Providers Say</h2>
+            <div class="testimonials-grid">
+                <div class="testimonial-card slide-up">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Verida saved us months of compliance work. We went from worrying about our audit to confidently walking in the door knowing exactly where we stand."</p>
+                    <div class="testimonial-author">
+                        <div class="author-name">Sarah Chen</div>
+                        <div class="author-title">Operations Director, Sunrise Support Services</div>
+                    </div>
+                </div>
+
+                <div class="testimonial-card slide-up">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"As someone who's juggling staff, participants, and a mountain of compliance requirements, Verida is a game-changer. It's like having a compliance consultant in your pocket."</p>
+                    <div class="testimonial-author">
+                        <div class="author-name">Marcus Jones</div>
+                        <div class="author-title">Founder, Community Advocates</div>
+                    </div>
+                </div>
+
+                <div class="testimonial-card slide-up">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"The gap analysis feature alone is worth the price. It tells us exactly what to fix and in what order. Our audit went from a stress test to a formality."</p>
+                    <div class="testimonial-author">
+                        <div class="author-name">Jennifer Liu</div>
+                        <div class="author-title">Compliance Manager, Peak Services</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="faq">
+        <div class="container">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+
+            <div class="faq-container">
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">
+                        <span>What NDIS standards does Verida monitor?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Verida monitors against NDIS Participant Safeguards Standards, Royal Commission recommendations, key compliance frameworks, and internal policies. We continuously update to reflect changing regulations and audit requirements.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">
+                        <span>How secure is my organisation's data?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>We use enterprise-grade encryption (AES-256), store data in Australian data centres, and comply with APPs and relevant privacy regulations. Your documents are never shared with third parties and you can delete them at any time.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">
+                        <span>Can I try Verida before paying?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Yes! We offer a 3-month free pilot with full access to all features. No credit card required. After the pilot, you choose your plan based on your participant count.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">
+                        <span>Does Verida integrate with my provider management software?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Our Scale plan includes API access for integrations. We're actively building connectors for ShiftCare, Vertex360, and other popular tools. Contact us to discuss your specific needs.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFAQ(this)">
+                        <span>What happens if I fail a gap in Verida's analysis?</span>
+                        <span class="faq-icon">+</span>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Verida provides step-by-step remediation plans for every gap. You can upload fixed documents and re-scan to prove remediation. The platform tracks your progress toward 100% compliance and generates evidence reports for auditors.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Never Fail an Audit Again?</h2>
+            <p>Join 100+ NDIS providers who are audit-ready with Verida.</p>
+            <button class="btn btn-primary btn-large" onclick="document.getElementById('pilotModal').style.display='flex'">Start Your Free Pilot</button>
+            <p class="cta-note">No credit card required. Full access to all features for 3 months.</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-column">
+                    <h4>Verida</h4>
+                    <p>AI-powered NDIS compliance monitoring. Audit-ready, every day.</p>
+                </div>
+                <div class="footer-column">
+                    <h4>Product</h4>
+                    <ul>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#pricing">Pricing</a></li>
+                        <li><a href="app.html">Dashboard</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="mailto:hello@veridahq.com">Contact Us</a></li>
+                        <li><a href="#privacy">Privacy Policy</a></li>
+                        <li><a href="#terms">Terms of Service</a></li>
+                        <li><a href="#security">Security</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Stay Updated</h4>
+                    <form class="newsletter-form" id="newsletterForm" onsubmit="handleNewsletter(event)">
+                        <input type="email" placeholder="your@email.com" required>
+                        <button type="submit" class="btn btn-primary btn-small">Subscribe</button>
+                    </form>
+                    <p class="newsletter-note">Join 500+ providers getting weekly compliance tips.</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Verida. All rights reserved. Made for NDIS providers, by people who care about compliance.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+
+    <!-- Pilot Signup Modal -->
+    <div id="pilotModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="this.closest('.modal').style.display='none'">×</button>
+            <h2>Start Your Free Pilot</h2>
+            <p>3 months of full access. No credit card required.</p>
+
+            <form id="pilotForm" onsubmit="handlePilotSignup(event)">
+                <div class="form-group">
+                    <label class="form-label">Organisation Name</label>
+                    <input type="text" class="form-input" placeholder="e.g., Sunshine Support Services" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Your Name</label>
+                    <input type="text" class="form-input" placeholder="First and Last Name" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="hello@yourdomain.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Number of Participants</label>
+                    <select class="form-input" required>
+                        <option value="">Select range...</option>
+                        <option value="1-10">1–10 (Essentials)</option>
+                        <option value="11-100">11–100 (Growth)</option>
+                        <option value="unlimited">100+ (Scale)</option>
+                    </select>
+                </div>
+
+                <div class="form-group checkbox">
+                    <input type="checkbox" id="termsCheck" required>
+                    <label for="termsCheck">I agree to the Terms of Service and Privacy Policy</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Get Started Free</button>
+                <p class="form-note">We'll send you a login link via email within 1 hour.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="this.closest('.modal').style.display='none'">×</button>
+            <h2>Login to Verida</h2>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="hello@yourdomain.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+
+                <div class="divider">or</div>
+
+                <button type="button" class="btn btn-secondary btn-block" onclick="handleDemoMode()">Try Demo Mode</button>
+
+                <p class="form-note" style="text-align: center; margin-top: 16px;">
+                    <a href="#" class="btn-text">Forgot password?</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

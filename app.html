@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verida Dashboard - NDIS Compliance Management">
+    <title>Verida - Compliance Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+    <!-- Auth Screen (shown on initial load if not logged in) -->
+    <div id="authScreen" class="auth-screen" style="display: flex;">
+        <div class="auth-container">
+            <div class="auth-logo">
+                <div class="auth-logo-icon">✓</div>
+                <span>Verida</span>
+            </div>
+
+            <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Login to Verida</h1>
+            <p class="auth-subtitle">AI-powered NDIS compliance monitoring</p>
+
+            <form id="authForm" onsubmit="handleAuthLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" id="authEmail" placeholder="hello@yourdomain.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="authPassword" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Sign In</button>
+            </form>
+
+            <div class="divider">or</div>
+
+            <button type="button" class="btn btn-secondary" onclick="enterDemoMode()">Try Demo Mode</button>
+
+            <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #6b7280;">
+                <a href="index.html" style="color: #2a9d8f;">← Back to home</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Main App Shell -->
+    <div id="appShell" class="app-shell" style="display: none;">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <div class="sidebar-logo-icon">✓</div>
+                <span>Verida</span>
+            </div>
+
+            <nav>
+                <div class="nav-item active" onclick="switchTab('dashboard')" data-tab="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('documents')" data-tab="documents">
+                    <span class="nav-icon">📄</span>
+                    <span>Documents</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('staff')" data-tab="staff">
+                    <span class="nav-icon">👥</span>
+                    <span>Staff</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('reports')" data-tab="reports">
+                    <span class="nav-icon">📈</span>
+                    <span>Reports</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('settings')" data-tab="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>Settings</span>
+                </div>
+            </nav>
+
+            <div style="padding: 0 20px; margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                <button class="btn btn-secondary" style="width: 100%; margin-bottom: 12px;" onclick="logout()">Sign Out</button>
+                <p style="font-size: 12px; color: #6b7280; text-align: center; margin: 0;">Verida v1.0</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Navbar -->
+            <nav class="navbar">
+                <div class="navbar-org" id="orgName">Sunshine Support Services</div>
+                <div class="navbar-right">
+                    <div class="notification-icon" title="Notifications">🔔</div>
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #1b365d, #2a9d8f); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer;" title="Profile">DU</div>
+                </div>
+            </nav>
+
+            <!-- Tab Contents -->
+            <div class="tab-content">
+
+                <!-- Dashboard Tab -->
+                <div id="dashboardTab" class="tab-pane active">
+                    <div class="container">
+                        <div class="header-section">
+                            <h1>Dashboard</h1>
+                            <p class="subtitle">Your compliance status at a glance</p>
+                        </div>
+
+                        <!-- Score Overview -->
+                        <div class="score-card">
+                            <div class="score-header">
+                                <h2>Overall Compliance Score</h2>
+                                <span class="score-date" id="scoreDate">Last updated: Today</span>
+                            </div>
+                            <div class="score-body">
+                                <div class="gauge-container">
+                                    <canvas id="gaugeChart" style="max-width: 300px; margin: 0 auto;"></canvas>
+                                </div>
+                                <div class="score-stats">
+                                    <div class="stat">
+                                        <div class="stat-label">Standards Met</div>
+                                        <div class="stat-value" id="statMet">18</div>
+                                        <div class="stat-detail">of 20</div>
+                                    </div>
+                                    <div class="stat">
+                                        <div class="stat-label">Critical Gaps</div>
+                                        <div class="stat-value danger" id="statGaps">2</div>
+                                    </div>
+                                    <div class="stat">
+                                        <div class="stat-label">Documents</div>
+                                        <div class="stat-value" id="statDocs">8</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Compliance Trend -->
+                        <div class="chart-card">
+                            <h3>Compliance Trend (Last 90 Days)</h3>
+                            <canvas id="trendChart" height="80"></canvas>
+                        </div>
+
+                        <!-- Modules Grid -->
+                        <div class="modules-grid">
+                            <div class="module-card">
+                                <div class="module-header">
+                                    <h3>Participant Safeguards</h3>
+                                    <div class="status-badge status-compliant">🟢 Compliant</div>
+                                </div>
+                                <p>19 of 19 standards met</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 100%; background: #10B981;"></div>
+                                </div>
+                            </div>
+
+                            <div class="module-card">
+                                <div class="module-header">
+                                    <h3>Incident Management</h3>
+                                    <div class="status-badge status-warning">🟡 At Risk</div>
+                                </div>
+                                <p>8 of 10 standards met</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 80%; background: #F59E0B;"></div>
+                                </div>
+                            </div>
+
+                            <div class="module-card">
+                                <div class="module-header">
+                                    <h3>Staff Management</h3>
+                                    <div class="status-badge status-compliant">🟢 Compliant</div>
+                                </div>
+                                <p>12 of 12 standards met</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 100%; background: #10B981;"></div>
+                                </div>
+                            </div>
+
+                            <div class="module-card">
+                                <div class="module-header">
+                                    <h3>Documentation</h3>
+                                    <div class="status-badge status-warning">🟡 At Risk</div>
+                                </div>
+                                <p>7 of 9 standards met</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 78%; background: #F59E0B;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gap Analysis -->
+                        <div class="gap-section">
+                            <h3>Top Compliance Gaps</h3>
+                            <div class="gap-list">
+                                <div class="gap-item gap-critical">
+                                    <div class="gap-severity">CRITICAL</div>
+                                    <div class="gap-content">
+                                        <div class="gap-title">Incident Response Plan Missing Key Elements</div>
+                                        <div class="gap-detail">Your incident response plan doesn't include mandatory escalation procedures. Update required within 30 days of audit.</div>
+                                    </div>
+                                    <div class="gap-action">
+                                        <button class="btn btn-small btn-primary">View Remediation</button>
+                                    </div>
+                                </div>
+
+                                <div class="gap-item gap-warning">
+                                    <div class="gap-severity">HIGH</div>
+                                    <div class="gap-content">
+                                        <div class="gap-title">Staff Training Records Incomplete</div>
+                                        <div class="gap-detail">3 staff members missing mandatory disability awareness training certificates from the last 12 months.</div>
+                                    </div>
+                                    <div class="gap-action">
+                                        <button class="btn btn-small btn-primary">View Remediation</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Tab -->
+                <div id="documentsTab" class="tab-pane">
+                    <div class="container">
+                        <div class="header-section">
+                            <div>
+                                <h1>Documents</h1>
+                                <p class="subtitle">Manage and scan your compliance documents</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="openUploadModal()">Upload Document</button>
+                        </div>
+
+                        <div class="documents-grid">
+                            <div class="document-card">
+                                <div class="doc-icon">📋</div>
+                                <div class="doc-name">Incident Response Policy</div>
+                                <div class="doc-date">Updated 2 days ago</div>
+                                <div class="doc-status"><span class="status-badge status-warning">🟡 Gaps Found</span></div>
+                                <div class="doc-actions">
+                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
+                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
+                                </div>
+                            </div>
+
+                            <div class="document-card">
+                                <div class="doc-icon">📄</div>
+                                <div class="doc-name">Staff Training Log</div>
+                                <div class="doc-date">Updated 5 days ago</div>
+                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
+                                <div class="doc-actions">
+                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
+                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
+                                </div>
+                            </div>
+
+                            <div class="document-card">
+                                <div class="doc-icon">📑</div>
+                                <div class="doc-name">Participant Plans</div>
+                                <div class="doc-date">Updated 1 week ago</div>
+                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
+                                <div class="doc-actions">
+                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
+                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
+                                </div>
+                            </div>
+
+                            <div class="document-card">
+                                <div class="doc-icon">✔️</div>
+                                <div class="doc-name">Safeguarding Procedures</div>
+                                <div class="doc-date">Updated 3 weeks ago</div>
+                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
+                                <div class="doc-actions">
+                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
+                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Staff Tab -->
+                <div id="staffTab" class="tab-pane">
+                    <div class="container">
+                        <div class="header-section">
+                            <div>
+                                <h1>Staff Management</h1>
+                                <p class="subtitle">Track staff training and compliance</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="openAddStaffModal()">Add Staff Member</button>
+                        </div>
+
+                        <div class="staff-table-wrapper">
+                            <table class="staff-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Role</th>
+                                        <th>Disability Awareness</th>
+                                        <th>First Aid</th>
+                                        <th>NDIS Standards</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Sarah Johnson</strong></td>
+                                        <td>Compliance Officer</td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-danger">✗ Expired</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><button class="btn btn-small" onclick="alert('Viewing staff details')">View</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Marcus Chen</strong></td>
+                                        <td>Support Worker</td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-warning">⚠ Expires Soon</span></td>
+                                        <td><button class="btn btn-small" onclick="alert('Viewing staff details')">View</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Emma Rodriguez</strong></td>
+                                        <td>Support Worker</td>
+                                        <td><span class="badge badge-danger">✗ Missing</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><button class="btn btn-small" onclick="alert('Viewing staff details')">View</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>David Park</strong></td>
+                                        <td>Manager</td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><button class="btn btn-small" onclick="alert('Viewing staff details')">View</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Lisa Thompson</strong></td>
+                                        <td>Support Worker</td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><span class="badge badge-success">✓ Current</span></td>
+                                        <td><button class="btn btn-small" onclick="alert('Viewing staff details')">View</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports Tab -->
+                <div id="reportsTab" class="tab-pane">
+                    <div class="container">
+                        <div class="header-section">
+                            <div>
+                                <h1>Reports</h1>
+                                <p class="subtitle">Generate and view compliance reports</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
+                        </div>
+
+                        <div class="reports-grid">
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3>Monthly Compliance Summary</h3>
+                                    <span class="report-date">Generated April 1, 2024</span>
+                                </div>
+                                <div class="report-content">
+                                    <p>Overall score: <strong>94%</strong></p>
+                                    <p>Standards met: <strong>18 of 20</strong></p>
+                                    <p>Critical gaps: <strong>2</strong></p>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="btn btn-small" onclick="alert('Downloading report')">Download PDF</button>
+                                    <button class="btn btn-small" onclick="alert('Viewing full report')">View</button>
+                                </div>
+                            </div>
+
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3>Audit Readiness Assessment</h3>
+                                    <span class="report-date">Generated March 28, 2024</span>
+                                </div>
+                                <div class="report-content">
+                                    <p>Audit Readiness Score: <strong>92%</strong></p>
+                                    <p>Risk Level: <strong>Low</strong></p>
+                                    <p>Recommended Actions: <strong>3</strong></p>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="btn btn-small" onclick="alert('Downloading report')">Download PDF</button>
+                                    <button class="btn btn-small" onclick="alert('Viewing full report')">View</button>
+                                </div>
+                            </div>
+
+                            <div class="report-card">
+                                <div class="report-header">
+                                    <h3>Gap Analysis Report</h3>
+                                    <span class="report-date">Generated March 20, 2024</span>
+                                </div>
+                                <div class="report-content">
+                                    <p>Total gaps identified: <strong>2</strong></p>
+                                    <p>Critical: <strong>1</strong> | High: <strong>1</strong></p>
+                                    <p>Average remediation time: <strong>5 days</strong></p>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="btn btn-small" onclick="alert('Downloading report')">Download PDF</button>
+                                    <button class="btn btn-small" onclick="alert('Viewing full report')">View</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settingsTab" class="tab-pane">
+                    <div class="container">
+                        <div class="header-section">
+                            <h1>Settings</h1>
+                            <p class="subtitle">Manage your account and organisation settings</p>
+                        </div>
+
+                        <div class="settings-grid">
+                            <div class="settings-card">
+                                <h3>Organisation Details</h3>
+                                <form onsubmit="handleSettingsSave(event)">
+                                    <div class="form-group">
+                                        <label class="form-label">Organisation Name</label>
+                                        <input type="text" class="form-input" value="Sunshine Support Services" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Current Plan</label>
+                                        <input type="text" class="form-input" value="Growth - $149/month" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Number of Participants</label>
+                                        <input type="text" class="form-input" value="45" disabled>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Notification Preferences</h3>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" checked>
+                                        <span>Email me on compliance gaps</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" checked>
+                                        <span>Weekly summary reports</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox">
+                                        <span>Document upload reminders</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Billing & Plan</h3>
+                                <div style="margin: 20px 0;">
+                                    <p style="margin: 0 0 12px 0;"><strong>Current Plan:</strong> Growth</p>
+                                    <p style="margin: 0 0 12px 0;"><strong>Renewal Date:</strong> May 1, 2024</p>
+                                    <p style="margin: 0 0 20px 0; color: #6b7280;">$149/month for 11-100 participants</p>
+                                    <button class="btn btn-primary" style="width: 100%;" onclick="alert('Redirecting to billing portal')">Manage Billing</button>
+                                </div>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Data & Privacy</h3>
+                                <div style="margin: 20px 0;">
+                                    <p style="margin: 0 0 12px 0;">Your data is encrypted and stored securely in Australian data centres.</p>
+                                    <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="alert('Downloading your data')">Download Your Data</button>
+                                    <button class="btn btn-secondary" style="width: 100%;" onclick="alert('Deleting account')">Delete Account</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="document.getElementById('uploadModal').style.display='none'">×</button>
+            <h2>Upload Document</h2>
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📁</div>
+                <p>Drag and drop your document here</p>
+                <p style="font-size: 12px; color: #6b7280;">or</p>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
+                <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
