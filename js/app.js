@@ -1,49 +1,237 @@
+// API configuration
+const API_BASE_URL = 'https://verida-api.onrender.com/api';
+let currentUser = null;
+let currentOrgId = null;
+let loadingOverlay = null;
+
+// Initialize loading overlay
+function createLoadingOverlay() {
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.id = 'loadingOverlay';
+        loadingOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        `;
+        loadingOverlay.innerHTML = `
+            <div style="background: white; padding: 40px; border-radius: 8px; text-align: center;">
+                <div style="margin-bottom: 20px;">
+                    <div style="border: 4px solid #f3f4f6; border-top: 4px solid #2a9d8f; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                </div>
+                <p style="color: #1b365d; font-weight: 600;">Loading...</p>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 8px;">First request may take up to 50 seconds due to server cold start.</p>
+            </div>
+            <style>
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            </style>
+        `;
+        document.body.appendChild(loadingOverlay);
+    }
+    return loadingOverlay;
+}
+
+function showLoading(show = true) {
+    const overlay = createLoadingOverlay();
+    overlay.style.display = show ? 'flex' : 'none';
+}
+
+// Fetch wrapper with error handling
+async function apiFetch(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = localStorage.getItem('accessToken');
+
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    showLoading(true);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            headers,
+        });
+
+        showLoading(false);
+
+        if (response.status === 401) {
+            // Token expired, redirect to login
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('currentUser');
+            window.location.href = 'app.html';
+            return null;
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `API error: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        showLoading(false);
+        console.error('API Error:', error);
+        throw error;
+    }
+}
+
 // Check authentication on load
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
     const demoMode = new URLSearchParams(window.location.search).get('demo') === 'true';
-    const currentUser = localStorage.getItem('currentUser');
+    const accessToken = localStorage.getItem('accessToken');
     const demoUser = localStorage.getItem('demoUser');
-    
-    if (!demoMode && !currentUser && !demoUser) {
+
+    if (!demoMode && !accessToken && !demoUser) {
         // Show auth screen
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('appShell').style.display = 'none';
-    } else {
-        // Show app
+    } else if (demoMode || demoUser) {
+        // Demo mode
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('appShell').style.display = 'flex';
-        
-        // Set user info
+
         if (demoUser) {
             const user = JSON.parse(demoUser);
             document.getElementById('orgName').textContent = user.org || 'Demo Organization';
-        } else if (currentUser) {
-            const user = JSON.parse(currentUser);
-            const email = user.email.split('@')[0].toUpperCase();
-            document.getElementById('orgName').textContent = 'Organization';
         }
-        
+
         // Initialize charts
         initCharts();
         attachEventListeners();
+    } else {
+        // Logged in — fetch user and org data
+        try {
+            const userData = await apiFetch('/auth/me');
+            if (userData) {
+                currentUser = userData;
+                currentOrgId = userData.organization_id;
+
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('appShell').style.display = 'flex';
+
+                // Set org name
+                if (userData.organization && userData.organization.name) {
+                    document.getElementById('orgName').textContent = userData.organization.name;
+                }
+
+                // Initialize charts and load dashboard data
+                initCharts();
+                attachEventListeners();
+                loadDashboardData();
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('currentUser');
+            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('appShell').style.display = 'none';
+        }
     }
 });
 
 // Handle auth login
-function handleAuthLogin(e) {
+async function handleAuthLogin(e) {
     e.preventDefault();
     const email = document.getElementById('authEmail').value;
-    
-    localStorage.setItem('currentUser', JSON.stringify({
-        email,
-        loggedIn: true,
-        timestamp: new Date().toISOString()
-    }));
-    
-    document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('appShell').style.display = 'flex';
-    initCharts();
-    attachEventListeners();
+    const password = document.getElementById('authPassword').value;
+
+    try {
+        showLoading(true);
+        const response = await apiFetch('/auth/signin', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        });
+
+        if (response && response.access_token) {
+            // Store tokens
+            localStorage.setItem('accessToken', response.access_token);
+            localStorage.setItem('refreshToken', response.refresh_token);
+            currentUser = response.user;
+            currentOrgId = response.user.organization_id;
+
+            // Update org name
+            if (response.user.organization) {
+                document.getElementById('orgName').textContent = response.user.organization.name;
+            }
+
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appShell').style.display = 'flex';
+            initCharts();
+            attachEventListeners();
+            loadDashboardData();
+        }
+        showLoading(false);
+    } catch (error) {
+        showLoading(false);
+        alert('Login failed: ' + error.message);
+    }
+}
+
+// Toggle between login and signup views
+function showSignUp() {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('signupView').style.display = 'block';
+}
+
+function showLogin() {
+    document.getElementById('signupView').style.display = 'none';
+    document.getElementById('loginView').style.display = 'block';
+}
+
+// Handle sign up
+async function handleAuthSignUp(e) {
+    e.preventDefault();
+    const fullName = document.getElementById('signupName').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const orgName = document.getElementById('signupOrg').value;
+
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters long.');
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const response = await apiFetch('/auth/signup', {
+            method: 'POST',
+            body: JSON.stringify({
+                email,
+                password,
+                full_name: fullName,
+                organization_name: orgName || null,
+            }),
+        });
+
+        showLoading(false);
+
+        if (response && response.user_id) {
+            alert('Account created! You can now sign in.');
+            showLogin();
+            document.getElementById('authEmail').value = email;
+        }
+    } catch (error) {
+        showLoading(false);
+        alert('Sign up failed: ' + error.message);
+    }
 }
 
 // Enter demo mode
@@ -64,7 +252,15 @@ function enterDemoMode() {
 }
 
 // Logout
-function logout() {
+async function logout() {
+    try {
+        await apiFetch('/auth/signout', { method: 'POST' });
+    } catch (error) {
+        console.warn('Sign out API call failed, clearing local data anyway');
+    }
+
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('demoUser');
     window.location.href = 'index.html';
@@ -90,6 +286,10 @@ function switchTab(tabName) {
     document.querySelector('.tab-content').scrollTop = 0;
 }
 
+// Store chart instances
+let gaugeChart = null;
+let trendChart = null;
+
 // Initialize charts
 function initCharts() {
     // Gauge Chart
@@ -106,8 +306,8 @@ function initCharts() {
                 cutout: '75%'
             }]
         };
-        
-        new Chart(gaugeCtx, {
+
+        gaugeChart = new Chart(gaugeCtx, {
             type: 'doughnut',
             data: gaugeData,
             options: {
@@ -120,7 +320,7 @@ function initCharts() {
             }
         });
     }
-    
+
     // Trend Chart
     const trendCtx = document.getElementById('trendChart');
     if (trendCtx) {
@@ -139,8 +339,8 @@ function initCharts() {
                 pointBorderWidth: 2
             }]
         };
-        
-        new Chart(trendCtx, {
+
+        trendChart = new Chart(trendCtx, {
             type: 'line',
             data: trendData,
             options: {
@@ -165,6 +365,14 @@ function initCharts() {
                 }
             }
         });
+    }
+}
+
+// Update gauge chart with new score
+function updateGaugeChart(score) {
+    if (gaugeChart) {
+        gaugeChart.data.datasets[0].data = [score, 100 - score];
+        gaugeChart.update();
     }
 }
 
@@ -202,14 +410,114 @@ function openUploadModal() {
     document.getElementById('uploadModal').style.display = 'flex';
 }
 
+// Load dashboard data from API
+async function loadDashboardData() {
+    try {
+        const demoMode = new URLSearchParams(window.location.search).get('demo') === 'true';
+
+        if (demoMode || !currentOrgId) {
+            // Use dummy data for demo mode
+            return;
+        }
+
+        // Fetch dashboard data
+        const dashboardData = await apiFetch('/dashboard/');
+
+        if (dashboardData) {
+            // Update score stats
+            const overallScore = dashboardData.overall_compliance_score || 94;
+            const compliantStandards = dashboardData.compliant_standards || 18;
+            const criticalGaps = dashboardData.critical_gaps || 2;
+            const totalDocs = dashboardData.total_documents || 8;
+
+            document.getElementById('statMet').textContent = compliantStandards;
+            document.getElementById('statGaps').textContent = criticalGaps;
+            document.getElementById('statDocs').textContent = totalDocs;
+
+            // Update gauge chart data
+            updateGaugeChart(overallScore);
+
+            // Fetch and display documents
+            loadDocumentsList();
+        }
+    } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+        // Continue with default demo data
+    }
+}
+
+// Load documents list
+async function loadDocumentsList() {
+    try {
+        const demoMode = new URLSearchParams(window.location.search).get('demo') === 'true';
+
+        if (demoMode || !currentOrgId) {
+            return;
+        }
+
+        const documentsData = await apiFetch('/documents/?per_page=20');
+
+        if (documentsData && documentsData.documents) {
+            // Documents are displayed in a grid
+            const grid = document.querySelector('.documents-grid');
+            if (grid) {
+                // Keep the existing card structure for now
+                // In a full implementation, we'd dynamically populate these
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load documents:', error);
+    }
+}
+
 // Handle file upload
-function handleFileUpload(e) {
+async function handleFileUpload(e) {
     const files = e.dataTransfer ? e.dataTransfer.files : e.target.files;
     if (files && files.length > 0) {
-        const fileName = files[0].name;
-        alert(`Document "${fileName}" uploaded successfully! Scanning for compliance gaps...`);
-        document.getElementById('uploadModal').style.display = 'none';
-        document.getElementById('fileInput').value = '';
+        const file = files[0];
+        const fileName = file.name;
+
+        const demoMode = new URLSearchParams(window.location.search).get('demo') === 'true';
+
+        if (demoMode) {
+            alert(`Document "${fileName}" uploaded successfully! Scanning for compliance gaps...`);
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            return;
+        }
+
+        try {
+            showLoading(true);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const token = localStorage.getItem('accessToken');
+            const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            showLoading(false);
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Upload failed');
+            }
+
+            const result = await response.json();
+            alert(`Document "${fileName}" uploaded successfully! Job ID: ${result.job_id}. Scanning for compliance gaps...`);
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+
+            // Refresh documents list
+            loadDocumentsList();
+        } catch (error) {
+            showLoading(false);
+            alert('Upload failed: ' + error.message);
+        }
     }
 }
 

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     cors_origins: List[str] = [
         "https://veridahq.com",
         "https://www.veridahq.com",
+        "https://api.veridahq.com",
+        "https://project-wbinr.vercel.app",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:8080",

@@ -18,30 +18,70 @@
                 <span>Verida</span>
             </div>
 
-            <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Login to Verida</h1>
-            <p class="auth-subtitle">AI-powered NDIS compliance monitoring</p>
+            <!-- Login View -->
+            <div id="loginView">
+                <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Login to Verida</h1>
+                <p class="auth-subtitle">AI-powered NDIS compliance monitoring</p>
 
-            <form id="authForm" onsubmit="handleAuthLogin(event)">
-                <div class="form-group">
-                    <label class="form-label">Email Address</label>
-                    <input type="email" class="form-input" id="authEmail" placeholder="hello@yourdomain.com" required>
-                </div>
+                <form id="authForm" onsubmit="handleAuthLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="authEmail" placeholder="hello@yourdomain.com" required>
+                    </div>
 
-                <div class="form-group">
-                    <label class="form-label">Password</label>
-                    <input type="password" class="form-input" id="authPassword" placeholder="••••••••" required>
-                </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" id="authPassword" placeholder="••••••••" required>
+                    </div>
 
-                <button type="submit" class="btn btn-primary">Sign In</button>
-            </form>
+                    <button type="submit" class="btn btn-primary">Sign In</button>
+                </form>
 
-            <div class="divider">or</div>
+                <div class="divider">or</div>
 
-            <button type="button" class="btn btn-secondary" onclick="enterDemoMode()">Try Demo Mode</button>
+                <button type="button" class="btn btn-secondary" onclick="enterDemoMode()">Try Demo Mode</button>
 
-            <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #6b7280;">
-                <a href="index.html" style="color: #2a9d8f;">← Back to home</a>
-            </p>
+                <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #6b7280;">
+                    Don't have an account? <a href="#" onclick="showSignUp(); return false;" style="color: #2a9d8f; font-weight: 600;">Sign Up</a>
+                </p>
+                <p style="text-align: center; margin-top: 8px; font-size: 13px; color: #6b7280;">
+                    <a href="index.html" style="color: #2a9d8f;">← Back to home</a>
+                </p>
+            </div>
+
+            <!-- Sign Up View -->
+            <div id="signupView" style="display: none;">
+                <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Create Account</h1>
+                <p class="auth-subtitle">Start your NDIS compliance journey</p>
+
+                <form id="signupForm" onsubmit="handleAuthSignUp(event)">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-input" id="signupName" placeholder="Jane Smith" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="signupEmail" placeholder="hello@yourdomain.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" id="signupPassword" placeholder="Min 6 characters" required minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Organisation Name <span style="color: #9ca3af; font-weight: 400;">(optional)</span></label>
+                        <input type="text" class="form-input" id="signupOrg" placeholder="Your NDIS Provider Name">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Create Account</button>
+                </form>
+
+                <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #6b7280;">
+                    Already have an account? <a href="#" onclick="showLogin(); return false;" style="color: #2a9d8f; font-weight: 600;">Sign In</a>
+                </p>
+            </div>
         </div>
     </div>
 
