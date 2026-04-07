@@ -426,6 +426,15 @@
     color: white;
 }
 
+.gap-info {
+    border-left-color: #3b82f6;
+}
+
+.gap-info .gap-severity {
+    background: #3b82f6;
+    color: white;
+}
+
 .gap-title {
     font-weight: 600;
     color: #1b365d;

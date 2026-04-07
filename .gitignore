@@ -32,3 +32,4 @@ coverage/
 # Vercel
 .vercel/
 .vercelignore
+.vercel

@@ -37,6 +37,10 @@
                     <button type="submit" class="btn btn-primary">Sign In</button>
                 </form>
 
+                <p style="text-align: center; margin-top: 12px; font-size: 13px;">
+                    <a href="#" onclick="showForgotPassword(); return false;" style="color: #2a9d8f; font-weight: 500;">Forgot your password?</a>
+                </p>
+
                 <div class="divider">or</div>
 
                 <button type="button" class="btn btn-secondary" onclick="enterDemoMode()">Try Demo Mode</button>
@@ -47,6 +51,49 @@
                 <p style="text-align: center; margin-top: 8px; font-size: 13px; color: #6b7280;">
                     <a href="index.html" style="color: #2a9d8f;">← Back to home</a>
                 </p>
+            </div>
+
+            <!-- Forgot Password View -->
+            <div id="forgotPasswordView" style="display: none;">
+                <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Reset Password</h1>
+                <p class="auth-subtitle">Enter your email and we'll send you a reset link</p>
+
+                <form id="forgotPasswordForm" onsubmit="handleForgotPassword(event)">
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" class="form-input" id="resetEmail" placeholder="hello@yourdomain.com" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Send Reset Link</button>
+                </form>
+
+                <p id="resetMessage" style="text-align: center; margin-top: 16px; font-size: 13px; color: #10B981; display: none;"></p>
+
+                <p style="text-align: center; margin-top: 20px; font-size: 13px; color: #6b7280;">
+                    <a href="#" onclick="showLogin(); return false;" style="color: #2a9d8f; font-weight: 600;">← Back to Sign In</a>
+                </p>
+            </div>
+
+            <!-- Update Password View (shown after clicking reset link) -->
+            <div id="updatePasswordView" style="display: none;">
+                <h1 style="text-align: center; margin-bottom: 8px; color: #1b365d; font-size: 24px;">Set New Password</h1>
+                <p class="auth-subtitle">Enter your new password below</p>
+
+                <form id="updatePasswordForm" onsubmit="handleUpdatePassword(event)">
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" class="form-input" id="newPassword" placeholder="Min 6 characters" required minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" class="form-input" id="confirmPassword" placeholder="Re-enter password" required minlength="6">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </form>
+
+                <p id="updateMessage" style="text-align: center; margin-top: 16px; font-size: 13px; color: #10B981; display: none;"></p>
             </div>
 
             <!-- Sign Up View -->
@@ -179,78 +226,16 @@
                             <canvas id="trendChart" height="80"></canvas>
                         </div>
 
-                        <!-- Modules Grid -->
-                        <div class="modules-grid">
-                            <div class="module-card">
-                                <div class="module-header">
-                                    <h3>Participant Safeguards</h3>
-                                    <div class="status-badge status-compliant">🟢 Compliant</div>
-                                </div>
-                                <p>19 of 19 standards met</p>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 100%; background: #10B981;"></div>
-                                </div>
-                            </div>
-
-                            <div class="module-card">
-                                <div class="module-header">
-                                    <h3>Incident Management</h3>
-                                    <div class="status-badge status-warning">🟡 At Risk</div>
-                                </div>
-                                <p>8 of 10 standards met</p>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 80%; background: #F59E0B;"></div>
-                                </div>
-                            </div>
-
-                            <div class="module-card">
-                                <div class="module-header">
-                                    <h3>Staff Management</h3>
-                                    <div class="status-badge status-compliant">🟢 Compliant</div>
-                                </div>
-                                <p>12 of 12 standards met</p>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 100%; background: #10B981;"></div>
-                                </div>
-                            </div>
-
-                            <div class="module-card">
-                                <div class="module-header">
-                                    <h3>Documentation</h3>
-                                    <div class="status-badge status-warning">🟡 At Risk</div>
-                                </div>
-                                <p>7 of 9 standards met</p>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: 78%; background: #F59E0B;"></div>
-                                </div>
-                            </div>
+                        <!-- Modules Grid (dynamically populated) -->
+                        <div class="modules-grid" id="modulesGrid">
+                            <!-- Populated by loadComplianceModules() -->
                         </div>
 
-                        <!-- Gap Analysis -->
+                        <!-- Gap Analysis (dynamically populated) -->
                         <div class="gap-section">
                             <h3>Top Compliance Gaps</h3>
-                            <div class="gap-list">
-                                <div class="gap-item gap-critical">
-                                    <div class="gap-severity">CRITICAL</div>
-                                    <div class="gap-content">
-                                        <div class="gap-title">Incident Response Plan Missing Key Elements</div>
-                                        <div class="gap-detail">Your incident response plan doesn't include mandatory escalation procedures. Update required within 30 days of audit.</div>
-                                    </div>
-                                    <div class="gap-action">
-                                        <button class="btn btn-small btn-primary">View Remediation</button>
-                                    </div>
-                                </div>
-
-                                <div class="gap-item gap-warning">
-                                    <div class="gap-severity">HIGH</div>
-                                    <div class="gap-content">
-                                        <div class="gap-title">Staff Training Records Incomplete</div>
-                                        <div class="gap-detail">3 staff members missing mandatory disability awareness training certificates from the last 12 months.</div>
-                                    </div>
-                                    <div class="gap-action">
-                                        <button class="btn btn-small btn-primary">View Remediation</button>
-                                    </div>
-                                </div>
+                            <div class="gap-list" id="gapList">
+                                <!-- Populated by loadComplianceGaps() -->
                             </div>
                         </div>
                     </div>
@@ -267,50 +252,8 @@
                             <button class="btn btn-primary" onclick="openUploadModal()">Upload Document</button>
                         </div>
 
-                        <div class="documents-grid">
-                            <div class="document-card">
-                                <div class="doc-icon">📋</div>
-                                <div class="doc-name">Incident Response Policy</div>
-                                <div class="doc-date">Updated 2 days ago</div>
-                                <div class="doc-status"><span class="status-badge status-warning">🟡 Gaps Found</span></div>
-                                <div class="doc-actions">
-                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
-                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
-                                </div>
-                            </div>
-
-                            <div class="document-card">
-                                <div class="doc-icon">📄</div>
-                                <div class="doc-name">Staff Training Log</div>
-                                <div class="doc-date">Updated 5 days ago</div>
-                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
-                                <div class="doc-actions">
-                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
-                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
-                                </div>
-                            </div>
-
-                            <div class="document-card">
-                                <div class="doc-icon">📑</div>
-                                <div class="doc-name">Participant Plans</div>
-                                <div class="doc-date">Updated 1 week ago</div>
-                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
-                                <div class="doc-actions">
-                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
-                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
-                                </div>
-                            </div>
-
-                            <div class="document-card">
-                                <div class="doc-icon">✔️</div>
-                                <div class="doc-name">Safeguarding Procedures</div>
-                                <div class="doc-date">Updated 3 weeks ago</div>
-                                <div class="doc-status"><span class="status-badge status-compliant">🟢 Compliant</span></div>
-                                <div class="doc-actions">
-                                    <button class="btn btn-small" onclick="alert('Viewing document details')">View</button>
-                                    <button class="btn btn-small" onclick="alert('Deleting document')">Delete</button>
-                                </div>
-                            </div>
+                        <div class="documents-grid" id="documentsGrid">
+                            <!-- Populated by loadDocumentsList() -->
                         </div>
                     </div>
                 </div>
