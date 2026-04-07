@@ -33,6 +33,8 @@ class Settings(BaseSettings):
         "https://www.veridahq.com",
         "https://api.veridahq.com",
         "https://project-wbinr.vercel.app",
+        "https://api.veridahq.com",
+        "https://project-wbinr.vercel.app",
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:8080",

@@ -234,6 +234,55 @@ async function handleAuthSignUp(e) {
     }
 }
 
+// Toggle between login and signup views
+function showSignUp() {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('signupView').style.display = 'block';
+}
+
+function showLogin() {
+    document.getElementById('signupView').style.display = 'none';
+    document.getElementById('loginView').style.display = 'block';
+}
+
+// Handle sign up
+async function handleAuthSignUp(e) {
+    e.preventDefault();
+    const fullName = document.getElementById('signupName').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const orgName = document.getElementById('signupOrg').value;
+
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters long.');
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const response = await apiFetch('/auth/signup', {
+            method: 'POST',
+            body: JSON.stringify({
+                email,
+                password,
+                full_name: fullName,
+                organization_name: orgName || null,
+            }),
+        });
+
+        showLoading(false);
+
+        if (response && response.user_id) {
+            alert('Account created! You can now sign in.');
+            showLogin();
+            document.getElementById('authEmail').value = email;
+        }
+    } catch (error) {
+        showLoading(false);
+        alert('Sign up failed: ' + error.message);
+    }
+}
+
 // Enter demo mode
 function enterDemoMode() {
     localStorage.setItem('demoUser', JSON.stringify({
