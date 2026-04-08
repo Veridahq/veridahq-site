@@ -376,3 +376,172 @@ class HealthCheckResponse(BaseModel):
     status: str
     version: str
     timestamp: datetime
+
+
+# =============================================================================
+# Client Models
+# =============================================================================
+
+class ClientCreate(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: str = Field(..., min_length=1)
+    date_of_birth: date
+    ndis_participant_number: str
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    suburb: Optional[str] = None
+    state: Optional[str] = None
+    postcode: Optional[str] = None
+    country: Optional[str] = None
+    current_plan_start_date: Optional[date] = None
+    current_plan_end_date: Optional[date] = None
+    current_plan_budget_amount: Optional[float] = None
+    funded_support_categories: Optional[List[str]] = Field(default_factory=list)
+    requires_behaviour_support: bool = False
+    primary_contact_name: Optional[str] = None
+    primary_contact_relationship: Optional[str] = None
+    primary_contact_email: Optional[EmailStr] = None
+    primary_contact_phone: Optional[str] = None
+
+
+class ClientUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    suburb: Optional[str] = None
+    state: Optional[str] = None
+    postcode: Optional[str] = None
+    country: Optional[str] = None
+    current_plan_start_date: Optional[date] = None
+    current_plan_end_date: Optional[date] = None
+    current_plan_budget_amount: Optional[float] = None
+    funded_support_categories: Optional[List[str]] = None
+    requires_behaviour_support: Optional[bool] = None
+    primary_contact_name: Optional[str] = None
+    primary_contact_relationship: Optional[str] = None
+    primary_contact_email: Optional[EmailStr] = None
+    primary_contact_phone: Optional[str] = None
+    is_flagged_for_review: Optional[bool] = None
+    review_notes: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive|exited)$")
+
+
+class ClientResponse(BaseModel):
+    id: str
+    organization_id: str
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    ndis_participant_number: str
+    email: Optional[str]
+    phone_number: Optional[str]
+    address_line1: Optional[str]
+    address_line2: Optional[str]
+    suburb: Optional[str]
+    state: Optional[str]
+    postcode: Optional[str]
+    country: Optional[str]
+    current_plan_start_date: Optional[date]
+    current_plan_end_date: Optional[date]
+    current_plan_budget_amount: Optional[float]
+    funded_support_categories: List[str]
+    status: str
+    requires_behaviour_support: bool
+    primary_contact_name: Optional[str]
+    primary_contact_relationship: Optional[str]
+    primary_contact_email: Optional[str]
+    primary_contact_phone: Optional[str]
+    is_flagged_for_review: bool
+    review_notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClientListResponse(BaseModel):
+    clients: List[ClientResponse]
+    total: int
+    page: int
+    per_page: int
+
+
+# =============================================================================
+# Client Documents Models
+# =============================================================================
+
+class ClientDocumentCreate(BaseModel):
+    document_id: str
+    document_type: str = Field(..., pattern="^(service_agreement|consent_form|individual_support_plan|risk_assessment|progress_notes|incident_report|behaviour_support_plan|goals_plan|financial_statement|funding_agreement|communication_plan|transition_plan|other)$")
+    document_date: Optional[date] = None
+    document_version: Optional[str] = None
+    review_due_date: Optional[date] = None
+    is_required: bool = False
+    notes: Optional[str] = None
+
+
+class ClientDocumentResponse(BaseModel):
+    id: str
+    client_id: str
+    document_id: str
+    document_type: str
+    document_date: Optional[date]
+    document_version: Optional[str]
+    review_due_date: Optional[date]
+    last_reviewed_date: Optional[date]
+    review_cycle_days: Optional[int]
+    is_current: bool
+    is_required: bool
+    status: str
+    notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClientDocumentListResponse(BaseModel):
+    documents: List[ClientDocumentResponse]
+    total: int
+
+
+# =============================================================================
+# Client Compliance Check Models
+# =============================================================================
+
+class ClientComplianceCheckTrigger(BaseModel):
+    check_type: str = Field(..., pattern="^(document_completeness|document_currency|form_completeness|cross_document_validation|comprehensive)$")
+
+
+class ClientComplianceFinding(BaseModel):
+    finding_type: str
+    severity: str = Field(..., pattern="^(critical|high|medium|low)$")
+    message: str
+    document_type: Optional[str] = None
+    field_name: Optional[str] = None
+    due_date: Optional[date] = None
+    days_overdue: Optional[int] = None
+    days_until_due: Optional[int] = None
+
+
+class ClientComplianceCheckResponse(BaseModel):
+    id: str
+    client_id: str
+    organization_id: str
+    check_type: str
+    status: str
+    overall_score: Optional[int]
+    findings: List[Dict[str, Any]]
+    ai_model_used: Optional[str]
+    ai_analysis_tokens_used: Optional[int]
+    checked_documents: int
+    created_by: Optional[str]
+    created_at: datetime
+    executed_at: Optional[datetime]
+    next_check_scheduled_for: Optional[datetime]
+
+
+class ClientComplianceCheckListResponse(BaseModel):
+    checks: List[ClientComplianceCheckResponse]
+    total: int
