@@ -150,6 +150,10 @@
                     <span class="nav-icon">📄</span>
                     <span>Documents</span>
                 </div>
+                <div class="nav-item" onclick="switchTab('clients')" data-tab="clients">
+                    <span class="nav-icon">👤</span>
+                    <span>Clients</span>
+                </div>
                 <div class="nav-item" onclick="switchTab('staff')" data-tab="staff">
                     <span class="nav-icon">👥</span>
                     <span>Staff</span>
@@ -254,6 +258,90 @@
 
                         <div class="documents-grid" id="documentsGrid">
                             <!-- Populated by loadDocumentsList() -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clients Tab -->
+                <div id="clientsTab" class="tab-pane">
+                    <div class="container">
+                        <div class="header-section">
+                            <div>
+                                <h1>Clients</h1>
+                                <p class="subtitle">Manage NDIS participants and their compliance</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="showAddClientModal()">Add Client</button>
+                        </div>
+
+                        <div class="clients-grid" id="clientsList">
+                            <!-- Populated by loadClientsList() -->
+                        </div>
+                    </div>
+
+                    <!-- Client Detail View (shown when clicking a client) -->
+                    <div id="clientDetailView" style="display: none;">
+                        <div style="margin-bottom: 20px;">
+                            <button class="btn btn-secondary" onclick="closeClientDetail()">← Back to Clients</button>
+                        </div>
+                        <div class="client-detail-card">
+                            <div class="client-detail-header">
+                                <div>
+                                    <h2 id="clientDetailName">Client Name</h2>
+                                    <p class="subtitle" id="clientDetailNdis">NDIS Participant #</p>
+                                </div>
+                                <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                            </div>
+
+                            <div class="client-detail-grid">
+                                <div class="client-detail-section">
+                                    <h3>Personal Information</h3>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Date of Birth</span>
+                                        <span class="detail-value" id="clientDetailDob">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Email</span>
+                                        <span class="detail-value" id="clientDetailEmail">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Phone</span>
+                                        <span class="detail-value" id="clientDetailPhone">-</span>
+                                    </div>
+                                </div>
+
+                                <div class="client-detail-section">
+                                    <h3>Current Plan</h3>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Start Date</span>
+                                        <span class="detail-value" id="clientDetailPlanStart">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">End Date</span>
+                                        <span class="detail-value" id="clientDetailPlanEnd">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Behaviour Support</span>
+                                        <span class="detail-value" id="clientDetailBehaviour">No</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="client-detail-section" style="margin-top: 24px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <h3 style="margin: 0;">Compliance Check Results</h3>
+                                    <button class="btn btn-primary" onclick="triggerClientComplianceCheck()">Run Compliance Check</button>
+                                </div>
+                                <div class="compliance-results" id="complianceResults">
+                                    <!-- Populated by showClientDetail() -->
+                                </div>
+                            </div>
+
+                            <div class="client-detail-section" style="margin-top: 24px;">
+                                <h3>Linked Documents</h3>
+                                <div class="linked-documents" id="linkedDocuments">
+                                    <!-- Populated by showClientDetail() -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -474,6 +562,72 @@
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
                 <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
             </div>
+        </div>
+    </div>
+
+    <!-- Add Client Modal -->
+    <div id="addClientModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeAddClientModal()">×</button>
+            <h2>Add New Client</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Enter the client's information below</p>
+
+            <form id="addClientForm" onsubmit="handleAddClient(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="clientFirstName" placeholder="John" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="clientLastName" placeholder="Smith" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Date of Birth *</label>
+                    <input type="date" class="form-input" id="clientDob" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">NDIS Participant Number</label>
+                    <input type="text" class="form-input" id="clientNdisNumber" placeholder="e.g., 123456789">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="clientEmail" placeholder="client@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="clientPhone" placeholder="+61 2 1234 5678">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Current Plan Start Date</label>
+                        <input type="date" class="form-input" id="clientPlanStart">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Current Plan End Date</label>
+                        <input type="date" class="form-input" id="clientPlanEnd">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="clientBehaviour">
+                        <span>Requires Behaviour Support</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 

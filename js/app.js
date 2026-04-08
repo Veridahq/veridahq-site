@@ -777,6 +777,9 @@ function renderDemoData() {
         { id: 'demo-3', file_name: 'Participant Plans.pdf', uploaded_at: new Date(Date.now() - 7 * 86400000).toISOString(), compliance_status: 'compliant' },
         { id: 'demo-4', file_name: 'Safeguarding Procedures.docx', uploaded_at: new Date(Date.now() - 21 * 86400000).toISOString(), compliance_status: 'compliant' },
     ]);
+
+    // Clients
+    renderDemoClients();
 }
 
 // ========== DOCUMENT ACTIONS ==========
@@ -873,6 +876,445 @@ function viewGapRemediation(gapId) {
     alert('Remediation details coming soon.');
 }
 
+// ========== CLIENTS ==========
+
+let currentClientId = null;
+
+function showClients() {
+    loadClientsList();
+}
+
+async function loadClientsList() {
+    if (isDemoMode() || !currentOrgId) {
+        renderDemoClients();
+        return;
+    }
+
+    try {
+        const clientsData = await apiFetch('/clients/?per_page=50');
+
+        if (clientsData && clientsData.clients) {
+            renderClientsList(clientsData.clients);
+        } else if (Array.isArray(clientsData)) {
+            renderClientsList(clientsData);
+        } else {
+            renderClientsList([]);
+        }
+    } catch (error) {
+        console.error('Failed to load clients:', error);
+        renderClientsList([]);
+    }
+}
+
+function renderClientsList(clients) {
+    const grid = document.getElementById('clientsList');
+    if (!grid) return;
+
+    if (!clients || clients.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #6b7280;">
+                <div style="font-size: 48px; margin-bottom: 16px;">👤</div>
+                <p style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">No clients yet</p>
+                <p>Add your first client to start managing their NDIS compliance.</p>
+                <button class="btn btn-primary" style="margin-top: 16px;" onclick="showAddClientModal()">Add Client</button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = clients.map(client => {
+        const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
+        const ndisNumber = client.ndis_participant_number || 'N/A';
+        const planDates = client.current_plan_start_date && client.current_plan_end_date
+            ? `${formatDate(client.current_plan_start_date)} – ${formatDate(client.current_plan_end_date)}`
+            : 'Not set';
+
+        // Determine status badge
+        let statusClass = 'status-active';
+        let statusText = 'Active';
+        if (client.status === 'inactive' || client.status === 'exited') {
+            statusClass = 'status-inactive';
+            statusText = client.status === 'exited' ? 'Exited' : 'Inactive';
+        } else if (client.status === 'at_risk') {
+            statusClass = 'status-atrisk';
+            statusText = 'At Risk';
+        }
+
+        return `
+            <div class="client-card" onclick="showClientDetail('${client.id}')">
+                <div class="client-card-header">
+                    <div class="client-avatar">${getInitials(fullName)}</div>
+                    <div class="client-card-status ${statusClass}">${statusText}</div>
+                </div>
+                <div class="client-card-body">
+                    <h3>${escapeHtml(fullName)}</h3>
+                    <p class="client-ndis">NDIS #${escapeHtml(ndisNumber)}</p>
+                    <p class="client-dates">${escapeHtml(planDates)}</p>
+                    ${client.requires_behaviour_support ? '<p class="client-behaviour">🎯 Behaviour Support</p>' : ''}
+                </div>
+                <div class="client-card-footer">
+                    <button class="btn btn-small" onclick="event.stopPropagation(); showClientDetail('${client.id}')">View Details</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderDemoClients() {
+    const demoClients = [
+        {
+            id: 'demo-client-1',
+            first_name: 'James',
+            last_name: 'Wilson',
+            ndis_participant_number: '123456789',
+            date_of_birth: '1995-03-15',
+            email: 'james.wilson@example.com',
+            phone_number: '+61 2 5555 1234',
+            current_plan_start_date: '2024-01-15',
+            current_plan_end_date: '2025-01-14',
+            requires_behaviour_support: true,
+            status: 'active'
+        },
+        {
+            id: 'demo-client-2',
+            first_name: 'Sarah',
+            last_name: 'Chen',
+            ndis_participant_number: '987654321',
+            date_of_birth: '1998-07-22',
+            email: 'sarah.chen@example.com',
+            phone_number: '+61 3 6666 2345',
+            current_plan_start_date: '2024-02-01',
+            current_plan_end_date: '2025-01-31',
+            requires_behaviour_support: false,
+            status: 'active'
+        },
+        {
+            id: 'demo-client-3',
+            first_name: 'Michael',
+            last_name: 'Rodriguez',
+            ndis_participant_number: '456789123',
+            date_of_birth: '2000-11-08',
+            email: 'michael.r@example.com',
+            phone_number: '+61 7 7777 3456',
+            current_plan_start_date: '2023-12-01',
+            current_plan_end_date: '2024-11-30',
+            requires_behaviour_support: true,
+            status: 'at_risk'
+        },
+        {
+            id: 'demo-client-4',
+            first_name: 'Emma',
+            last_name: 'Thompson',
+            ndis_participant_number: '321654987',
+            date_of_birth: '1997-05-30',
+            email: 'emma.t@example.com',
+            phone_number: '+61 4 8888 4567',
+            current_plan_start_date: '2022-06-15',
+            current_plan_end_date: '2023-06-14',
+            requires_behaviour_support: false,
+            status: 'exited'
+        }
+    ];
+
+    renderClientsList(demoClients);
+}
+
+function showAddClientModal() {
+    document.getElementById('addClientModal').style.display = 'flex';
+}
+
+function closeAddClientModal() {
+    document.getElementById('addClientModal').style.display = 'none';
+    document.getElementById('addClientForm').reset();
+}
+
+async function handleAddClient(e) {
+    e.preventDefault();
+
+    const clientData = {
+        first_name: document.getElementById('clientFirstName').value,
+        last_name: document.getElementById('clientLastName').value,
+        date_of_birth: document.getElementById('clientDob').value,
+        ndis_participant_number: document.getElementById('clientNdisNumber').value || null,
+        email: document.getElementById('clientEmail').value || null,
+        phone_number: document.getElementById('clientPhone').value || null,
+        current_plan_start_date: document.getElementById('clientPlanStart').value || null,
+        current_plan_end_date: document.getElementById('clientPlanEnd').value || null,
+        requires_behaviour_support: document.getElementById('clientBehaviour').checked
+    };
+
+    if (isDemoMode()) {
+        alert(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
+        closeAddClientModal();
+        renderDemoClients();
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const result = await apiFetch('/clients/', {
+            method: 'POST',
+            body: JSON.stringify(clientData)
+        });
+
+        showLoading(false);
+
+        if (result) {
+            alert(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
+            closeAddClientModal();
+            loadClientsList();
+        }
+    } catch (error) {
+        showLoading(false);
+        alert('Failed to add client: ' + error.message);
+    }
+}
+
+async function showClientDetail(clientId) {
+    currentClientId = clientId;
+
+    if (isDemoMode()) {
+        const demoClients = [
+            {
+                id: 'demo-client-1',
+                first_name: 'James',
+                last_name: 'Wilson',
+                ndis_participant_number: '123456789',
+                date_of_birth: '1995-03-15',
+                email: 'james.wilson@example.com',
+                phone_number: '+61 2 5555 1234',
+                current_plan_start_date: '2024-01-15',
+                current_plan_end_date: '2025-01-14',
+                requires_behaviour_support: true,
+                status: 'active'
+            },
+            {
+                id: 'demo-client-2',
+                first_name: 'Sarah',
+                last_name: 'Chen',
+                ndis_participant_number: '987654321',
+                date_of_birth: '1998-07-22',
+                email: 'sarah.chen@example.com',
+                phone_number: '+61 3 6666 2345',
+                current_plan_start_date: '2024-02-01',
+                current_plan_end_date: '2025-01-31',
+                requires_behaviour_support: false,
+                status: 'active'
+            },
+            {
+                id: 'demo-client-3',
+                first_name: 'Michael',
+                last_name: 'Rodriguez',
+                ndis_participant_number: '456789123',
+                date_of_birth: '2000-11-08',
+                email: 'michael.r@example.com',
+                phone_number: '+61 7 7777 3456',
+                current_plan_start_date: '2023-12-01',
+                current_plan_end_date: '2024-11-30',
+                requires_behaviour_support: true,
+                status: 'at_risk'
+            },
+            {
+                id: 'demo-client-4',
+                first_name: 'Emma',
+                last_name: 'Thompson',
+                ndis_participant_number: '321654987',
+                date_of_birth: '1997-05-30',
+                email: 'emma.t@example.com',
+                phone_number: '+61 4 8888 4567',
+                current_plan_start_date: '2022-06-15',
+                current_plan_end_date: '2023-06-14',
+                requires_behaviour_support: false,
+                status: 'exited'
+            }
+        ];
+        const client = demoClients.find(c => c.id === clientId);
+        if (client) {
+            renderClientDetailView(client);
+        }
+        return;
+    }
+
+    try {
+        const client = await apiFetch(`/clients/${clientId}`);
+        if (client) {
+            renderClientDetailView(client);
+        }
+    } catch (error) {
+        console.error('Failed to load client details:', error);
+        alert('Failed to load client details');
+    }
+}
+
+function renderClientDetailView(client) {
+    const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
+
+    // Determine status
+    let statusClass = 'client-status-active';
+    let statusText = 'Active';
+    if (client.status === 'inactive' || client.status === 'exited') {
+        statusClass = 'client-status-inactive';
+        statusText = client.status === 'exited' ? 'Exited' : 'Inactive';
+    } else if (client.status === 'at_risk') {
+        statusClass = 'client-status-atrisk';
+        statusText = 'At Risk';
+    }
+
+    document.getElementById('clientDetailName').textContent = escapeHtml(fullName);
+    document.getElementById('clientDetailNdis').textContent = `NDIS Participant #${escapeHtml(client.ndis_participant_number || 'N/A')}`;
+    document.getElementById('clientDetailStatus').className = `client-detail-status ${statusClass}`;
+    document.getElementById('clientDetailStatus').textContent = statusText;
+
+    document.getElementById('clientDetailDob').textContent = client.date_of_birth ? formatDate(client.date_of_birth) : '-';
+    document.getElementById('clientDetailEmail').textContent = client.email ? escapeHtml(client.email) : '-';
+    document.getElementById('clientDetailPhone').textContent = client.phone_number ? escapeHtml(client.phone_number) : '-';
+
+    document.getElementById('clientDetailPlanStart').textContent = client.current_plan_start_date ? formatDate(client.current_plan_start_date) : '-';
+    document.getElementById('clientDetailPlanEnd').textContent = client.current_plan_end_date ? formatDate(client.current_plan_end_date) : '-';
+    document.getElementById('clientDetailBehaviour').textContent = client.requires_behaviour_support ? 'Yes' : 'No';
+
+    // Render compliance results
+    renderComplianceResults(client);
+
+    // Render linked documents
+    renderLinkedDocuments(client);
+
+    // Hide list view, show detail view
+    document.getElementById('clientsList').style.display = 'none';
+    document.getElementById('clientDetailView').style.display = 'block';
+}
+
+function renderComplianceResults(client) {
+    const resultsContainer = document.getElementById('complianceResults');
+
+    // Demo compliance results
+    const results = [
+        {
+            category: 'Personal Planning & Budgeting',
+            status: 'compliant',
+            score: 95,
+            lastChecked: new Date(Date.now() - 3 * 86400000)
+        },
+        {
+            category: 'Plan Implementation',
+            status: 'compliant',
+            score: 88,
+            lastChecked: new Date(Date.now() - 5 * 86400000)
+        },
+        {
+            category: 'Incident Management',
+            status: 'at_risk',
+            score: 72,
+            lastChecked: new Date(Date.now() - 7 * 86400000)
+        },
+        {
+            category: 'Safeguarding',
+            status: 'compliant',
+            score: 92,
+            lastChecked: new Date(Date.now() - 2 * 86400000)
+        }
+    ];
+
+    if (!results || results.length === 0) {
+        resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet.</p>';
+        return;
+    }
+
+    resultsContainer.innerHTML = results.map(result => {
+        const statusClass = result.status === 'compliant' ? 'status-compliant' : 'status-warning';
+        const statusIcon = result.status === 'compliant' ? '🟢' : '🟡';
+        const lastCheckedText = timeAgo(result.lastChecked);
+
+        return `
+            <div class="compliance-result-card">
+                <div class="compliance-result-header">
+                    <div>
+                        <h4>${escapeHtml(result.category)}</h4>
+                        <p class="compliance-checked">Last checked ${lastCheckedText}</p>
+                    </div>
+                    <div class="status-badge ${statusClass}">${statusIcon} ${result.status === 'compliant' ? 'Compliant' : 'At Risk'}</div>
+                </div>
+                <div class="compliance-score">
+                    <div class="score-bar">
+                        <div class="score-fill" style="width: ${result.score}%; background: ${result.status === 'compliant' ? '#10B981' : '#F59E0B'};"></div>
+                    </div>
+                    <span class="score-text">${result.score}%</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderLinkedDocuments(client) {
+    const docsContainer = document.getElementById('linkedDocuments');
+
+    // Demo documents linked to this client
+    const documents = [
+        {
+            id: 'doc-1',
+            file_name: 'Plan Implementation Summary.pdf',
+            uploaded_at: new Date(Date.now() - 10 * 86400000),
+            status: 'compliant'
+        },
+        {
+            id: 'doc-2',
+            file_name: 'Incident Report Q1 2024.docx',
+            uploaded_at: new Date(Date.now() - 20 * 86400000),
+            status: 'gaps_found'
+        }
+    ];
+
+    if (!documents || documents.length === 0) {
+        docsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No documents linked to this client yet.</p>';
+        return;
+    }
+
+    docsContainer.innerHTML = documents.map(doc => {
+        const statusClass = doc.status === 'compliant' ? 'status-compliant' : 'status-warning';
+        const statusIcon = doc.status === 'compliant' ? '🟢' : '🟡';
+        const statusText = doc.status === 'compliant' ? 'Compliant' : 'Gaps Found';
+        const uploadedText = timeAgo(new Date(doc.uploaded_at));
+
+        return `
+            <div class="linked-doc-card">
+                <div style="flex: 1;">
+                    <p class="linked-doc-name">${escapeHtml(doc.file_name)}</p>
+                    <p class="linked-doc-date">Uploaded ${uploadedText}</p>
+                </div>
+                <div class="status-badge ${statusClass}">${statusIcon} ${statusText}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function closeClientDetail() {
+    document.getElementById('clientDetailView').style.display = 'none';
+    document.getElementById('clientsList').style.display = 'grid';
+}
+
+async function triggerClientComplianceCheck() {
+    if (!currentClientId) return;
+
+    if (isDemoMode()) {
+        alert('Compliance check started. Results will be available in a few moments.');
+        return;
+    }
+
+    try {
+        showLoading(true);
+        await apiFetch(`/clients/${currentClientId}/compliance-check`, {
+            method: 'POST'
+        });
+        showLoading(false);
+
+        alert('Compliance check completed. Refreshing results...');
+        showClientDetail(currentClientId);
+    } catch (error) {
+        showLoading(false);
+        alert('Failed to trigger compliance check: ' + error.message);
+    }
+}
+
 // ========== STAFF & REPORTS (placeholders for now) ==========
 
 function openAddStaffModal() {
@@ -917,6 +1359,23 @@ function timeAgo(date) {
         }
     }
     return 'just now';
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    return date.toLocaleDateString('en-AU', options);
+}
+
+function getInitials(name) {
+    if (!name) return '?';
+    return name
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
 }
 
 // Set current date
