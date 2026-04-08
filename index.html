@@ -457,7 +457,29 @@
                 <button type="button" class="btn btn-secondary btn-block" onclick="handleDemoMode()">Try Demo Mode</button>
 
                 <p class="form-note" style="text-align: center; margin-top: 16px;">
-                    <a href="#" class="btn-text">Forgot password?</a>
+                    <a href="#" class="btn-text" onclick="openForgotPassword(event)">Forgot password?</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgotPasswordModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="this.closest('.modal').style.display='none'">×</button>
+            <h2>Reset Password</h2>
+            <p>Enter your email address and we'll send you a link to reset your password.</p>
+
+            <form id="forgotPasswordForm" onsubmit="handleForgotPassword(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" class="form-input" placeholder="hello@yourdomain.com" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+
+                <p class="form-note" style="text-align: center; margin-top: 16px;">
+                    <a href="#" class="btn-text" onclick="switchToLogin(event)">Back to Login</a>
                 </p>
             </form>
         </div>
