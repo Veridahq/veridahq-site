@@ -396,20 +396,26 @@
             <h2>Start Your Free Pilot</h2>
             <p>3 months of full access. No credit card required.</p>
 
+            <div id="pilotFormWrap">
             <form id="pilotForm" onsubmit="handlePilotSignup(event)">
                 <div class="form-group">
                     <label class="form-label">Organisation Name</label>
-                    <input type="text" class="form-input" placeholder="e.g., Sunshine Support Services" required>
+                    <input type="text" id="signupOrg" class="form-input" placeholder="e.g., Sunshine Support Services" required>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Your Name</label>
-                    <input type="text" class="form-input" placeholder="First and Last Name" required>
+                    <input type="text" id="signupName" class="form-input" placeholder="First and Last Name" required>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" class="form-input" placeholder="hello@yourdomain.com" required>
+                    <input type="email" id="signupEmail" class="form-input" placeholder="hello@yourdomain.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" id="signupPassword" class="form-input" placeholder="Min. 8 characters" minlength="8" required>
                 </div>
 
                 <div class="form-group">
@@ -427,9 +433,17 @@
                     <label for="termsCheck">I agree to the Terms of Service and Privacy Policy</label>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block">Get Started Free</button>
-                <p class="form-note">We'll send you a login link via email within 1 hour.</p>
+                <button type="submit" id="signupBtn" class="btn btn-primary btn-block">Get Started Free</button>
+                <p id="signupError" class="form-note" style="color:#e53e3e;display:none;"></p>
             </form>
+            </div>
+
+            <div id="pilotEmailSent" style="display:none;text-align:center;padding:24px 0;">
+                <div style="font-size:48px;margin-bottom:16px;">📧</div>
+                <h3 style="margin-bottom:8px;">Check your inbox!</h3>
+                <p>We've sent a verification link to <strong id="sentToEmail"></strong>.<br>Click the link in the email to activate your account.</p>
+                <p class="form-note" style="margin-top:16px;">Didn't get it? Check your spam folder or <a href="#" class="btn-text" onclick="document.getElementById('pilotEmailSent').style.display='none';document.getElementById('pilotFormWrap').style.display='block';">try again</a>.</p>
+            </div>
         </div>
     </div>
 

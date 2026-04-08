@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email — Verida</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' style='stop-color:%231B365D;stop-opacity:1' /><stop offset='100%' style='stop-color:%232A9D8F;stop-opacity:1' /></linearGradient></defs><rect width='100' height='100' fill='url(%23grad)' rx='20'/><path d='M50 25 L60 45 L42 45 L50 65 L35 45 L50 45 Z' fill='white'/></svg>" type="image/svg+xml">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            padding: 24px;
+        }
+        .verify-card {
+            background: white;
+            border-radius: 16px;
+            padding: 48px 40px;
+            max-width: 440px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+        }
+        .icon { font-size: 56px; margin-bottom: 20px; }
+        .verify-card h1 { font-size: 24px; margin-bottom: 12px; color: #1B365D; }
+        .verify-card p  { color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #2A9D8F;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-icon { color: #e53e3e; }
+    </style>
+</head>
+<body>
+    <div class="verify-card" id="card">
+        <div class="spinner" id="spinner"></div>
+        <h1 id="title">Verifying your email…</h1>
+        <p id="message">Please wait while we confirm your address.</p>
+    </div>
+
+    <script>
+        const API = 'https://verida-api.onrender.com';
+
+        function parseHash() {
+            const hash = window.location.hash.substring(1);
+            const params = {};
+            hash.split('&').forEach(part => {
+                const [k, v] = part.split('=');
+                if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
+            });
+            return params;
+        }
+
+        function showError(msg) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('title').textContent = 'Verification failed';
+            document.getElementById('message').innerHTML =
+                `<span class="error-icon">⚠️</span> ${msg}<br><br>` +
+                `<a href="/" class="btn btn-secondary">Back to home</a>`;
+        }
+
+        function showSuccess(email) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('title').textContent = '✅ Email verified!';
+            document.getElementById('message').innerHTML =
+                `Your account <strong>${email || ''}</strong> is confirmed.<br><br>` +
+                `You're being redirected to your dashboard…`;
+            setTimeout(() => { window.location.href = 'app.html'; }, 2000);
+        }
+
+        async function verify() {
+            const params = parseHash();
+            const token = params['access_token'];
+            const type  = params['type'];
+
+            if (!token || type !== 'signup') {
+                showError('Invalid or expired verification link. Please sign up again.');
+                return;
+            }
+
+            try {
+                // Exchange access token for a full profile via our backend
+                const res = await fetch(`${API}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+
+                if (!res.ok) throw new Error('Token invalid');
+
+                const user = await res.json();
+
+                // Persist session so app.html can use it immediately
+                localStorage.setItem('authToken', token);
+                if (params['refresh_token']) {
+                    localStorage.setItem('refreshToken', params['refresh_token']);
+                }
+                localStorage.setItem('currentUser', JSON.stringify({
+                    ...user,
+                    loggedIn: true,
+                }));
+
+                showSuccess(user.email);
+
+            } catch (err) {
+                showError('Could not verify your email. The link may have expired.');
+            }
+        }
+
+        verify();
+    </script>
+</body>
+</html>

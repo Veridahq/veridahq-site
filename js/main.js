@@ -107,36 +107,51 @@ function handleNewsletter(e) {
 }
 
 // Pilot signup handler
-function handlePilotSignup(e) {
+async function handlePilotSignup(e) {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const org = e.target.querySelector('input[type="text"]').value;
-    const name = e.target.querySelectorAll('input[type="text"]')[1].value;
-    const email = e.target.querySelector('input[type="email"]').value;
-    
-    // Store pilot signup
-    const pilots = JSON.parse(localStorage.getItem('pilots') || '[]');
-    pilots.push({
-        org,
-        name,
-        email,
-        date: new Date().toISOString()
-    });
-    localStorage.setItem('pilots', JSON.stringify(pilots));
-    
-    // Store as demo session
-    localStorage.setItem('demoUser', JSON.stringify({
-        org,
-        name,
-        email,
-        plan: 'growth',
-        startDate: new Date().toISOString()
-    }));
-    
-    alert('Welcome to Verida! Redirecting to your dashboard...');
-    setTimeout(() => {
-        window.location.href = 'app.html';
-    }, 1000);
+
+    const org      = document.getElementById('signupOrg').value.trim();
+    const name     = document.getElementById('signupName').value.trim();
+    const email    = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+
+    const btn = document.getElementById('signupBtn');
+    const errEl = document.getElementById('signupError');
+    errEl.style.display = 'none';
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account…';
+
+    try {
+        const res = await fetch('https://verida-api.onrender.com/api/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                password,
+                full_name: name,
+                organization_name: org,
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Sign up failed. Please try again.');
+        }
+
+        // Show email-sent confirmation
+        document.getElementById('pilotFormWrap').style.display = 'none';
+        document.getElementById('sentToEmail').textContent = email;
+        document.getElementById('pilotEmailSent').style.display = 'block';
+
+    } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Get Started Free';
+    }
 }
 
 // Forgot password helpers
@@ -180,22 +195,56 @@ async function handleForgotPassword(e) {
 }
 
 // Login handler
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
-    const email = e.target.querySelector('input[type="email"]').value;
-    
-    // For demo purposes, store login info and redirect
-    localStorage.setItem('currentUser', JSON.stringify({
-        email,
-        loggedIn: true,
-        timestamp: new Date().toISOString()
-    }));
-    
-    document.getElementById('loginModal').style.display = 'none';
-    alert('Login successful! Redirecting to dashboard...');
-    setTimeout(() => {
+
+    const email    = e.target.querySelector('input[type="email"]').value.trim();
+    const password = e.target.querySelector('input[type="password"]').value;
+    const btn      = e.target.querySelector('button[type="submit"]');
+
+    let errEl = document.getElementById('loginError');
+    if (!errEl) {
+        errEl = document.createElement('p');
+        errEl.id = 'loginError';
+        errEl.style.cssText = 'color:#e53e3e;font-size:14px;margin-top:8px;display:none;';
+        btn.insertAdjacentElement('afterend', errEl);
+    }
+    errEl.style.display = 'none';
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    try {
+        const res = await fetch('https://verida-api.onrender.com/api/auth/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Invalid email or password.');
+        }
+
+        // Persist session
+        localStorage.setItem('authToken', data.access_token);
+        localStorage.setItem('refreshToken', data.refresh_token);
+        localStorage.setItem('currentUser', JSON.stringify({
+            ...data.user,
+            loggedIn: true,
+        }));
+
+        document.getElementById('loginModal').style.display = 'none';
         window.location.href = 'app.html';
-    }, 1000);
+
+    } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+    }
 }
 
 // Demo mode handler

@@ -67,7 +67,8 @@ async def sign_up(request: SignUpRequest):
             "email": request.email,
             "password": request.password,
             "options": {
-                "data": {"full_name": request.full_name}
+                "data": {"full_name": request.full_name},
+                "email_redirect_to": "https://veridahq.com/verify-email.html",
             },
         })
 
