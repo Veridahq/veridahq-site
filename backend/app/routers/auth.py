@@ -5,6 +5,8 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 
 from app.database import supabase, supabase_admin
+from app.config import settings
+from app.services.email import send_password_reset_email
 from app.models import (
     SignUpRequest,
     SignInRequest,
@@ -228,20 +230,59 @@ async def refresh_token(request: RefreshTokenRequest):
 @router.post("/reset-password")
 async def reset_password(request: PasswordResetRequest):
     """
-    Send a password reset email to the provided address.
+    Send a Verida-branded password reset email.
+
+    Uses the Supabase admin generate_link API to obtain a verified magic
+    link, then sends a custom HTML email via Resend so the message
+    appears to come from Verida, not Supabase.
 
     Always returns success to prevent email enumeration attacks.
     """
+    REDIRECT = "https://veridahq.com/reset-password.html"
+
     try:
-        supabase.auth.reset_password_email(
-            request.email,
-            options={"redirect_to": "https://veridahq.com/reset-password.html"},
-        )
+        # Generate the Supabase recovery magic link server-side.
+        # This gives us the exact URL to embed in our own email.
+        link_response = supabase_admin.auth.admin.generate_link({
+            "type": "recovery",
+            "email": request.email,
+            "options": {"redirect_to": REDIRECT},
+        })
+
+        action_link = link_response.properties.action_link
+
+        # Send our own branded email with that link.
+        sent = await send_password_reset_email(request.email, action_link)
+
+        if not sent:
+            # Fallback: let Supabase send its default email so the user
+            # is not left completely without a reset path.
+            logger.warning("Resend unavailable — falling back to Supabase email")
+            supabase.auth.reset_password_email(
+                request.email,
+                options={"redirect_to": REDIRECT},
+            )
+
     except Exception as e:
-        logger.error(f"Password reset email error: {e}")
-        # Intentionally swallowed — always return success
+        logger.error(f"Password reset error: {e}")
+        # Intentionally swallowed — always return the same response
 
     return {"message": "If that email address is registered, a password reset link has been sent."}
+
+
+# ---------------------------------------------------------------------------
+# GET /client-config  (public — returns only safe, non-secret values)
+# ---------------------------------------------------------------------------
+@router.get("/client-config")
+async def client_config():
+    """
+    Return the public Supabase URL and anon key for frontend PKCE flows.
+    The anon key is intentionally public (enforced by Supabase RLS).
+    """
+    return {
+        "supabase_url": settings.supabase_url,
+        "supabase_anon_key": settings.supabase_key,
+    }
 
 
 # ---------------------------------------------------------------------------

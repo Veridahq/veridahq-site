@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
     ]
 
+    # Email (Resend)
+    resend_api_key: str = ""
+    from_email: str = "Verida <noreply@veridahq.com>"
+
     # API
     api_prefix: str = "/api"
 
