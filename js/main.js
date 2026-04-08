@@ -139,6 +139,46 @@ function handlePilotSignup(e) {
     }, 1000);
 }
 
+// Forgot password helpers
+function openForgotPassword(e) {
+    e.preventDefault();
+    document.getElementById('loginModal').style.display = 'none';
+    document.getElementById('forgotPasswordModal').style.display = 'flex';
+}
+
+function switchToLogin(e) {
+    e.preventDefault();
+    document.getElementById('forgotPasswordModal').style.display = 'none';
+    document.getElementById('loginModal').style.display = 'flex';
+}
+
+async function handleForgotPassword(e) {
+    e.preventDefault();
+    const email = e.target.querySelector('input[type="email"]').value;
+    const btn = e.target.querySelector('button[type="submit"]');
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+        const res = await fetch('https://verida-api.onrender.com/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+
+        // Always show the same message regardless of whether the email exists
+        document.getElementById('forgotPasswordModal').style.display = 'none';
+        alert('If that email address is registered, a password reset link has been sent. Check your inbox.');
+        e.target.reset();
+    } catch (err) {
+        alert('Something went wrong. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Reset Link';
+    }
+}
+
 // Login handler
 function handleLogin(e) {
     e.preventDefault();

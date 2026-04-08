@@ -234,7 +234,7 @@ async def reset_password(request: PasswordResetRequest):
     try:
         supabase.auth.reset_password_email(
             request.email,
-            options={"redirect_to": "https://veridahq.com/auth/update-password"},
+            options={"redirect_to": "https://veridahq.com/reset-password.html"},
         )
     except Exception as e:
         logger.error(f"Password reset email error: {e}")
@@ -257,7 +257,8 @@ async def update_password(
     Requires a valid access token (typically obtained after clicking a reset link).
     """
     try:
-        supabase.auth.update_user({"password": request.password})
+        user_id = auth_data["user"].id
+        supabase_admin.auth.admin.update_user_by_id(user_id, {"password": request.password})
         logger.info(f"Password updated for user: {auth_data['user'].email}")
         return {"message": "Password updated successfully"}
     except Exception as e:
