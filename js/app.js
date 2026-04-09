@@ -46,6 +46,21 @@ function showLoading(show = true) {
     overlay.style.display = show ? 'flex' : 'none';
 }
 
+// Toast notification (replaces alert() throughout the app)
+function showToast(message, type = 'success') {
+    const colors = {
+        success: { bg: '#d1fae5', text: '#065f46', border: '#10B981' },
+        error:   { bg: '#fee2e2', text: '#991b1b', border: '#EF4444' },
+        info:    { bg: '#eff6ff', text: '#1e40af', border: '#3B82F6' },
+    };
+    const c = colors[type] || colors.info;
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;top:20px;right:20px;padding:14px 20px;border-radius:8px;font-size:14px;font-weight:500;z-index:10000;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,0.15);background:${c.bg};color:${c.text};border-left:4px solid ${c.border};opacity:1;transition:opacity 0.3s ease;`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4500);
+}
+
 // Fetch wrapper with error handling
 async function apiFetch(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -205,7 +220,7 @@ async function handleAuthLogin(e) {
         showLoading(false);
     } catch (error) {
         showLoading(false);
-        alert('Login failed: ' + error.message);
+        showToast('Login failed: ' + error.message, 'error');
     }
 }
 
@@ -316,7 +331,7 @@ async function handleAuthSignUp(e) {
     const orgName = document.getElementById('signupOrg').value;
 
     if (password.length < 6) {
-        alert('Password must be at least 6 characters long.');
+        showToast('Password must be at least 6 characters long.', 'error');
         return;
     }
 
@@ -335,13 +350,13 @@ async function handleAuthSignUp(e) {
         showLoading(false);
 
         if (response && response.user_id) {
-            alert('Account created! Please check your email to verify your account, then sign in.');
+            showToast('Account created! Please check your email to verify your account, then sign in.', 'success');
             showLogin();
             document.getElementById('authEmail').value = email;
         }
     } catch (error) {
         showLoading(false);
-        alert('Sign up failed: ' + error.message);
+        showToast('Sign up failed: ' + error.message, 'error');
     }
 }
 
@@ -796,7 +811,7 @@ async function handleFileUpload(e) {
     const fileName = file.name;
 
     if (isDemoMode()) {
-        alert(`Document "${fileName}" uploaded successfully! Scanning for compliance gaps...`);
+        showToast(`"${fileName}" uploaded. Scanning for compliance gaps...`);
         document.getElementById('uploadModal').style.display = 'none';
         document.getElementById('fileInput').value = '';
         return;
@@ -821,8 +836,8 @@ async function handleFileUpload(e) {
             throw new Error(error.detail || 'Upload failed');
         }
 
-        const result = await response.json();
-        alert(`Document "${fileName}" uploaded successfully! Compliance scan started.`);
+        await response.json();
+        showToast(`"${fileName}" uploaded. Compliance scan started.`);
         document.getElementById('uploadModal').style.display = 'none';
         document.getElementById('fileInput').value = '';
 
@@ -830,30 +845,29 @@ async function handleFileUpload(e) {
         loadDocumentsList();
     } catch (error) {
         showLoading(false);
-        alert('Upload failed: ' + error.message);
+        showToast('Upload failed: ' + error.message, 'error');
     }
 }
 
 async function viewDocument(docId) {
     if (isDemoMode()) {
-        alert('Document details view is available with a real account.');
+        showToast('Document details view is available with a real account.', 'info');
         return;
     }
 
     try {
         const doc = await apiFetch(`/documents/${docId}`);
         if (doc) {
-            // For now, show basic info — can be expanded to a modal later
-            alert(`Document: ${doc.file_name}\nStatus: ${doc.compliance_status || 'pending'}\nUploaded: ${new Date(doc.uploaded_at).toLocaleDateString()}`);
+            showToast(`${doc.original_filename} — ${doc.processing_status || 'pending'}`, 'info');
         }
     } catch (error) {
-        alert('Failed to load document details: ' + error.message);
+        showToast('Failed to load document details: ' + error.message, 'error');
     }
 }
 
 async function deleteDocument(docId) {
     if (isDemoMode()) {
-        alert('Document deletion is available with a real account.');
+        showToast('Document deletion is available with a real account.', 'info');
         return;
     }
 
@@ -863,17 +877,16 @@ async function deleteDocument(docId) {
         await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
         loadDocumentsList();
     } catch (error) {
-        alert('Failed to delete document: ' + error.message);
+        showToast('Failed to delete document: ' + error.message, 'error');
     }
 }
 
 function viewGapRemediation(gapId) {
     if (isDemoMode() || !gapId) {
-        alert('Detailed remediation steps will be available after uploading and scanning your documents.');
+        showToast('Detailed remediation steps will be available after uploading and scanning your documents.', 'info');
         return;
     }
-    // Future: open a modal with remediation details from the API
-    alert('Remediation details coming soon.');
+    showToast('Remediation details coming soon.', 'info');
 }
 
 // ========== CLIENTS ==========
@@ -1044,7 +1057,7 @@ async function handleAddClient(e) {
     };
 
     if (isDemoMode()) {
-        alert(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
+        showToast(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
         closeAddClientModal();
         renderDemoClients();
         return;
@@ -1060,13 +1073,13 @@ async function handleAddClient(e) {
         showLoading(false);
 
         if (result) {
-            alert(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
+            showToast(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
             closeAddClientModal();
             loadClientsList();
         }
     } catch (error) {
         showLoading(false);
-        alert('Failed to add client: ' + error.message);
+        showToast('Failed to add client: ' + error.message, 'error');
     }
 }
 
@@ -1142,7 +1155,7 @@ async function showClientDetail(clientId) {
         }
     } catch (error) {
         console.error('Failed to load client details:', error);
-        alert('Failed to load client details');
+        showToast('Failed to load client details', 'error');
     }
 }
 
@@ -1296,7 +1309,7 @@ async function triggerClientComplianceCheck() {
     if (!currentClientId) return;
 
     if (isDemoMode()) {
-        alert('Compliance check started. Results will be available in a few moments.');
+        showToast('Compliance check started. Results will be available in a few moments.', 'info');
         return;
     }
 
@@ -1307,11 +1320,11 @@ async function triggerClientComplianceCheck() {
         });
         showLoading(false);
 
-        alert('Compliance check completed. Refreshing results...');
+        showToast('Compliance check completed. Refreshing results...');
         showClientDetail(currentClientId);
     } catch (error) {
         showLoading(false);
-        alert('Failed to trigger compliance check: ' + error.message);
+        showToast('Failed to trigger compliance check: ' + error.message, 'error');
     }
 }
 
@@ -1320,17 +1333,17 @@ async function triggerClientComplianceCheck() {
 function openAddStaffModal() {
     const name = prompt('Enter staff member name:');
     if (name) {
-        alert(`${name} has been added to your staff list.`);
+        showToast(`${name} has been added to your staff list.`);
     }
 }
 
 function handleSettingsSave(e) {
     e.preventDefault();
-    alert('Settings updated successfully!');
+    showToast('Settings updated successfully!');
 }
 
 function generateReport() {
-    alert('Report generation started. Check your email in a few moments.');
+    showToast('Report generation started. Check your email in a few moments.', 'info');
 }
 
 // ========== UTILITIES ==========

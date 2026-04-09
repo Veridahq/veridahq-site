@@ -93,17 +93,28 @@ if (billingToggle) {
 // Newsletter signup
 function handleNewsletter(e) {
     e.preventDefault();
-    const email = e.target.querySelector('input[type="email"]').value;
-    
+    const form = e.target;
+    const email = form.querySelector('input[type="email"]').value;
+
     // Store in localStorage
     const subscribers = JSON.parse(localStorage.getItem('subscribers') || '[]');
     if (!subscribers.includes(email)) {
         subscribers.push(email);
         localStorage.setItem('subscribers', JSON.stringify(subscribers));
     }
-    
-    alert('Thanks for subscribing! Check your email for weekly compliance tips.');
-    e.target.reset();
+
+    // Show inline success message
+    let msgEl = form.querySelector('.newsletter-msg');
+    if (!msgEl) {
+        msgEl = document.createElement('p');
+        msgEl.className = 'newsletter-msg';
+        msgEl.style.cssText = 'padding:10px 14px;border-radius:6px;font-size:14px;margin-top:10px;';
+        form.appendChild(msgEl);
+    }
+    msgEl.textContent = 'Thanks for subscribing! Check your email for weekly compliance tips.';
+    msgEl.style.background = '#d1fae5';
+    msgEl.style.color = '#065f46';
+    form.reset();
 }
 
 // Pilot signup handler
@@ -169,25 +180,37 @@ function switchToLogin(e) {
 
 async function handleForgotPassword(e) {
     e.preventDefault();
-    const email = e.target.querySelector('input[type="email"]').value;
-    const btn = e.target.querySelector('button[type="submit"]');
+    const form = e.target;
+    const email = form.querySelector('input[type="email"]').value;
+    const btn = form.querySelector('button[type="submit"]');
+
+    // Find or create inline message element
+    let msgEl = form.querySelector('.reset-msg');
+    if (!msgEl) {
+        msgEl = document.createElement('p');
+        msgEl.className = 'reset-msg';
+        msgEl.style.cssText = 'padding:10px 14px;border-radius:6px;font-size:14px;margin-top:12px;display:none;';
+        btn.insertAdjacentElement('afterend', msgEl);
+    }
+    msgEl.style.display = 'none';
 
     btn.disabled = true;
     btn.textContent = 'Sending...';
 
     try {
-        const res = await fetch('https://verida-api.onrender.com/api/auth/reset-password', {
+        await fetch('https://verida-api.onrender.com/api/auth/reset-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email }),
         });
 
-        // Always show the same message regardless of whether the email exists
-        document.getElementById('forgotPasswordModal').style.display = 'none';
-        alert('If that email address is registered, a password reset link has been sent. Check your inbox.');
-        e.target.reset();
+        // Always show same message regardless of whether email exists (prevents enumeration)
+        msgEl.textContent = 'If that email is registered, a reset link has been sent. Check your inbox.';
+        msgEl.style.cssText = 'padding:10px 14px;border-radius:6px;font-size:14px;margin-top:12px;display:block;background:#d1fae5;color:#065f46;';
+        form.reset();
     } catch (err) {
-        alert('Something went wrong. Please try again.');
+        msgEl.textContent = 'Something went wrong. Please try again.';
+        msgEl.style.cssText = 'padding:10px 14px;border-radius:6px;font-size:14px;margin-top:12px;display:block;background:#fee2e2;color:#991b1b;';
     } finally {
         btn.disabled = false;
         btn.textContent = 'Send Reset Link';
@@ -258,10 +281,7 @@ function handleDemoMode() {
     }));
     
     document.getElementById('loginModal').style.display = 'none';
-    alert('Entering demo mode...');
-    setTimeout(() => {
-        window.location.href = 'app.html?demo=true';
-    }, 1000);
+    window.location.href = 'app.html?demo=true';
 }
 
 // Close modals on background click
