@@ -73,24 +73,203 @@ async def classify_document(text: str, filename: str) -> dict:
     """
     client = get_anthropic_client()
 
-    document_types = [
-        "privacy_policy",
-        "incident_register",
-        "staff_training_log",
-        "service_agreement",
-        "consent_form",
-        "risk_management_plan",
-        "complaints_register",
+    # ---- CORE MODULE ----
+    # Governance
+    CORE_GOVERNANCE = [
+        "business_continuity_plan",
+        "strategic_operational_plan",
+        "conflict_of_interest_register",
+        "continuous_improvement_plan",
+        "continuous_improvement_register",
+        "internal_audit_schedule",
+        "organisational_chart",
         "quality_improvement_plan",
+        "swot_analysis",
+    ]
+    # Business / Risk Forms
+    CORE_BUSINESS_FORMS = [
+        "emergency_management_plan",
+        "emergency_evacuation_plan",
+        "risk_assessment",
+        "risk_management_plan",
+        "risk_register",
+        "workplace_inspection_checklist",
+        "whs_inspection_checklist",
+        "meeting_minutes",
+    ]
+    # Incident Management
+    CORE_INCIDENT = [
+        "incident_report",
+        "incident_register",
+        "incident_investigation_form",
+        "reportable_incident_24hr",
+        "reportable_incident_5day",
+    ]
+    # Complaints & Feedback
+    CORE_COMPLAINTS = [
+        "complaint_form",
+        "complaint_form_easy_english",
+        "complaints_register",
+        "complaints_process_checklist",
+        "feedback_form",
+    ]
+    # Participant / Client Forms
+    CORE_PARTICIPANT = [
+        "consent_form",
+        "consent_form_easy_read",
+        "intake_form",
+        "intake_checklist",
+        "referral_form",
+        "service_agreement",
+        "service_agreement_easy_read",
+        "support_plan",
+        "support_plan_easy_read",
+        "support_plan_progress_report",
+        "support_plan_review_register",
+        "participant_support_plan",
+        "schedule_of_supports",
+        "participant_handbook",
+        "welcome_pack_easy_read",
+        "exit_form",
+        "exit_transition_plan",
+        "satisfaction_survey",
+        "acknowledgement_form",
+        "refusal_to_consent",
+        "money_handling_consent",
+        "personal_emergency_plan",
+        "safe_environment_risk_assessment",
+        "advocate_authority_form",
+        "opt_out_audit_form",
+        "privacy_statement",
+        "privacy_policy",
+        "progress_notes",
+        "client_charter",
+    ]
+    # Staff / HR
+    CORE_STAFF_HR = [
+        "staff_induction_checklist",
+        "staff_performance_review",
+        "staff_training_log",
+        "individual_training_register",
+        "training_development_book",
+        "supervision_record",
+        "staff_handbook",
+        "personnel_file_setup",
+        "privacy_confidentiality_agreement",
+        "conflict_of_interest_declaration",
+        "delegation_of_authority",
         "worker_screening_check",
         "first_aid_certificate",
         "ndis_module_training",
-        "participant_support_plan",
-        "medication_management_plan",
-        "behaviour_support_plan",
-        "emergency_evacuation_plan",
-        "unknown",
     ]
+    # Medication Management
+    CORE_MEDICATION = [
+        "medication_administration_chart",
+        "medication_care_plan_consent",
+        "medication_incident_report",
+        "medication_management_plan",
+        "medication_risk_assessment",
+        "medication_phone_order",
+        "prn_medication_record",
+        "medication_register",
+    ]
+    # Position Descriptions
+    CORE_POSITION_DESCRIPTIONS = [
+        "support_worker_pd",
+        "team_leader_pd",
+        "clinical_nurse_pd",
+        "registered_nurse_pd",
+        "management_pd",
+    ]
+
+    # ---- MODULE 1: HIGH INTENSITY DAILY PERSONAL ACTIVITIES ----
+    MODULE1_ENTERAL_FEEDING = [
+        "enteral_feeding_care_plan",
+        "enteral_feeding_consent",
+        "enteral_feeding_assessment",
+        "enteral_feeding_competency",
+        "fluid_balance_chart",
+        "stoma_care_plan",
+        "weight_chart",
+    ]
+    MODULE1_WOUND = [
+        "wound_assessment",
+        "wound_management_care_plan",
+        "wound_management_consent",
+        "wound_progress_report",
+    ]
+    MODULE1_CATHETER = [
+        "catheter_care_plan",
+        "catheter_consent",
+        "catheter_competency",
+    ]
+    MODULE1_SUBCUTANEOUS = [
+        "subcutaneous_care_plan",
+        "subcutaneous_consent",
+        "subcutaneous_medication_sheet",
+        "subcutaneous_assessment",
+    ]
+    MODULE1_TRACHEOSTOMY = [
+        "tracheostomy_care_plan",
+        "tracheostomy_consent",
+        "tracheostomy_competency",
+    ]
+    MODULE1_VENTILATOR = [
+        "ventilator_care_plan",
+        "ventilator_consent",
+        "ventilator_competency",
+    ]
+    MODULE1_COMPLEX_BOWEL = [
+        "complex_bowel_care_plan",
+        "complex_bowel_consent",
+        "complex_bowel_competency",
+    ]
+    MODULE1_DYSPHAGIA = [
+        "dysphagia_care_plan",
+        "dysphagia_consent",
+        "dysphagia_assessment",
+    ]
+    MODULE1_EPILEPSY = [
+        "epilepsy_seizure_management_plan",
+        "epilepsy_consent",
+        "epilepsy_competency",
+    ]
+
+    # ---- MODULE 2 / 2A: BEHAVIOUR SUPPORT ----
+    MODULE2_BEHAVIOUR = [
+        "behaviour_support_plan",
+        "interim_behaviour_support_plan",
+        "reviewed_bsp_register",
+        "restrictive_practices_monthly_report",
+        "legal_restraints_competency",
+        "clinical_supervision_record",
+        "reportable_incident_24hr_bsp",
+        "reportable_incident_5day_bsp",
+        "staff_training_needs_assessment",
+        "ongoing_professional_development_plan",
+    ]
+
+    document_types = (
+        CORE_GOVERNANCE
+        + CORE_BUSINESS_FORMS
+        + CORE_INCIDENT
+        + CORE_COMPLAINTS
+        + CORE_PARTICIPANT
+        + CORE_STAFF_HR
+        + CORE_MEDICATION
+        + CORE_POSITION_DESCRIPTIONS
+        + MODULE1_ENTERAL_FEEDING
+        + MODULE1_WOUND
+        + MODULE1_CATHETER
+        + MODULE1_SUBCUTANEOUS
+        + MODULE1_TRACHEOSTOMY
+        + MODULE1_VENTILATOR
+        + MODULE1_COMPLEX_BOWEL
+        + MODULE1_DYSPHAGIA
+        + MODULE1_EPILEPSY
+        + MODULE2_BEHAVIOUR
+        + ["unknown"]
+    )
 
     prompt = f"""You are an expert NDIS compliance document classifier for Australian disability service providers.
 
@@ -101,12 +280,95 @@ FILENAME: {filename}
 DOCUMENT CONTENT (first 3000 characters):
 {text[:3000] if text else "(no text extracted)"}
 
-VALID DOCUMENT TYPES:
-{chr(10).join(f"  - {dt}" for dt in document_types)}
+VALID DOCUMENT TYPES (grouped by category — use the exact snake_case value):
+
+CORE MODULE — Governance:
+  business_continuity_plan, strategic_operational_plan, conflict_of_interest_register,
+  continuous_improvement_plan, continuous_improvement_register, internal_audit_schedule,
+  organisational_chart, quality_improvement_plan, swot_analysis
+
+CORE MODULE — Business / Risk Forms:
+  emergency_management_plan, emergency_evacuation_plan, risk_assessment,
+  risk_management_plan, risk_register, workplace_inspection_checklist,
+  whs_inspection_checklist, meeting_minutes
+
+CORE MODULE — Incident Management:
+  incident_report, incident_register, incident_investigation_form,
+  reportable_incident_24hr, reportable_incident_5day
+
+CORE MODULE — Complaints & Feedback:
+  complaint_form, complaint_form_easy_english, complaints_register,
+  complaints_process_checklist, feedback_form
+
+CORE MODULE — Participant / Client Forms:
+  consent_form, consent_form_easy_read, intake_form, intake_checklist,
+  referral_form, service_agreement, service_agreement_easy_read,
+  support_plan, support_plan_easy_read, support_plan_progress_report,
+  support_plan_review_register, participant_support_plan, schedule_of_supports,
+  participant_handbook, welcome_pack_easy_read, exit_form, exit_transition_plan,
+  satisfaction_survey, acknowledgement_form, refusal_to_consent,
+  money_handling_consent, personal_emergency_plan, safe_environment_risk_assessment,
+  advocate_authority_form, opt_out_audit_form, privacy_statement, privacy_policy,
+  progress_notes, client_charter
+
+CORE MODULE — Staff / HR:
+  staff_induction_checklist, staff_performance_review, staff_training_log,
+  individual_training_register, training_development_book, supervision_record,
+  staff_handbook, personnel_file_setup, privacy_confidentiality_agreement,
+  conflict_of_interest_declaration, delegation_of_authority, worker_screening_check,
+  first_aid_certificate, ndis_module_training
+
+CORE MODULE — Medication Management:
+  medication_administration_chart, medication_care_plan_consent,
+  medication_incident_report, medication_management_plan, medication_risk_assessment,
+  medication_phone_order, prn_medication_record, medication_register
+
+CORE MODULE — Position Descriptions:
+  support_worker_pd, team_leader_pd, clinical_nurse_pd, registered_nurse_pd,
+  management_pd
+
+MODULE 1 (High Intensity) — Enteral Feeding:
+  enteral_feeding_care_plan, enteral_feeding_consent, enteral_feeding_assessment,
+  enteral_feeding_competency, fluid_balance_chart, stoma_care_plan, weight_chart
+
+MODULE 1 — Wound Management:
+  wound_assessment, wound_management_care_plan, wound_management_consent,
+  wound_progress_report
+
+MODULE 1 — Catheter Management:
+  catheter_care_plan, catheter_consent, catheter_competency
+
+MODULE 1 — Subcutaneous Injections:
+  subcutaneous_care_plan, subcutaneous_consent, subcutaneous_medication_sheet,
+  subcutaneous_assessment
+
+MODULE 1 — Tracheostomy:
+  tracheostomy_care_plan, tracheostomy_consent, tracheostomy_competency
+
+MODULE 1 — Ventilator:
+  ventilator_care_plan, ventilator_consent, ventilator_competency
+
+MODULE 1 — Complex Bowel:
+  complex_bowel_care_plan, complex_bowel_consent, complex_bowel_competency
+
+MODULE 1 — Dysphagia:
+  dysphagia_care_plan, dysphagia_consent, dysphagia_assessment
+
+MODULE 1 — Epilepsy:
+  epilepsy_seizure_management_plan, epilepsy_consent, epilepsy_competency
+
+MODULE 2 / 2A — Behaviour Support:
+  behaviour_support_plan, interim_behaviour_support_plan, reviewed_bsp_register,
+  restrictive_practices_monthly_report, legal_restraints_competency,
+  clinical_supervision_record, reportable_incident_24hr_bsp,
+  reportable_incident_5day_bsp, staff_training_needs_assessment,
+  ongoing_professional_development_plan
+
+If the document does not match any category above, use: unknown
 
 Respond with a JSON object ONLY — no explanation outside the JSON:
 {{
-  "document_type": "<exact type from the list above>",
+  "document_type": "<exact snake_case type from the list above>",
   "confidence": <float between 0.0 and 1.0>,
   "reasoning": "<one sentence explanation of your classification>"
 }}"""

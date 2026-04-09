@@ -89,9 +89,11 @@ async def process_document_async(
         document_type = classification.get("document_type", "unknown")
         classification_confidence = float(classification.get("confidence", 0.0))
         classification_reasoning = classification.get("reasoning", "")
+        ndis_module = classification.get("ndis_module")
 
         logger.info(
             f"[Job {job_id}] Classified as '{document_type}' "
+            f"[{ndis_module or 'unknown module'}] "
             f"(confidence {classification_confidence:.2f})"
         )
 
@@ -108,6 +110,7 @@ async def process_document_async(
             "metadata": {
                 "classification_confidence": classification_confidence,
                 "classification_reasoning": classification_reasoning,
+                "ndis_module": ndis_module,
                 "text_length": len(extracted_text) if extracted_text else 0,
                 "text_truncated_in_db": bool(
                     extracted_text and len(extracted_text) > MAX_STORED_TEXT_CHARS

@@ -12,21 +12,168 @@ import uuid
 # =============================================================================
 
 class DocumentTypeEnum(str, Enum):
-    PRIVACY_POLICY = "privacy_policy"
-    INCIDENT_REGISTER = "incident_register"
-    STAFF_TRAINING_LOG = "staff_training_log"
-    SERVICE_AGREEMENT = "service_agreement"
-    CONSENT_FORM = "consent_form"
-    RISK_MANAGEMENT_PLAN = "risk_management_plan"
-    COMPLAINTS_REGISTER = "complaints_register"
+    # ---- CORE MODULE — Governance ----
+    BUSINESS_CONTINUITY_PLAN = "business_continuity_plan"
+    STRATEGIC_OPERATIONAL_PLAN = "strategic_operational_plan"
+    CONFLICT_OF_INTEREST_REGISTER = "conflict_of_interest_register"
+    CONTINUOUS_IMPROVEMENT_PLAN = "continuous_improvement_plan"
+    CONTINUOUS_IMPROVEMENT_REGISTER = "continuous_improvement_register"
+    INTERNAL_AUDIT_SCHEDULE = "internal_audit_schedule"
+    ORGANISATIONAL_CHART = "organisational_chart"
     QUALITY_IMPROVEMENT_PLAN = "quality_improvement_plan"
+    SWOT_ANALYSIS = "swot_analysis"
+
+    # ---- CORE MODULE — Business / Risk Forms ----
+    EMERGENCY_MANAGEMENT_PLAN = "emergency_management_plan"
+    EMERGENCY_EVACUATION_PLAN = "emergency_evacuation_plan"
+    RISK_ASSESSMENT = "risk_assessment"
+    RISK_MANAGEMENT_PLAN = "risk_management_plan"
+    RISK_REGISTER = "risk_register"
+    WORKPLACE_INSPECTION_CHECKLIST = "workplace_inspection_checklist"
+    WHS_INSPECTION_CHECKLIST = "whs_inspection_checklist"
+    MEETING_MINUTES = "meeting_minutes"
+
+    # ---- CORE MODULE — Incident Management ----
+    INCIDENT_REPORT = "incident_report"
+    INCIDENT_REGISTER = "incident_register"
+    INCIDENT_INVESTIGATION_FORM = "incident_investigation_form"
+    REPORTABLE_INCIDENT_24HR = "reportable_incident_24hr"
+    REPORTABLE_INCIDENT_5DAY = "reportable_incident_5day"
+
+    # ---- CORE MODULE — Complaints & Feedback ----
+    COMPLAINT_FORM = "complaint_form"
+    COMPLAINT_FORM_EASY_ENGLISH = "complaint_form_easy_english"
+    COMPLAINTS_REGISTER = "complaints_register"
+    COMPLAINTS_PROCESS_CHECKLIST = "complaints_process_checklist"
+    FEEDBACK_FORM = "feedback_form"
+
+    # ---- CORE MODULE — Participant / Client Forms ----
+    CONSENT_FORM = "consent_form"
+    CONSENT_FORM_EASY_READ = "consent_form_easy_read"
+    INTAKE_FORM = "intake_form"
+    INTAKE_CHECKLIST = "intake_checklist"
+    REFERRAL_FORM = "referral_form"
+    SERVICE_AGREEMENT = "service_agreement"
+    SERVICE_AGREEMENT_EASY_READ = "service_agreement_easy_read"
+    SUPPORT_PLAN = "support_plan"
+    SUPPORT_PLAN_EASY_READ = "support_plan_easy_read"
+    SUPPORT_PLAN_PROGRESS_REPORT = "support_plan_progress_report"
+    SUPPORT_PLAN_REVIEW_REGISTER = "support_plan_review_register"
+    PARTICIPANT_SUPPORT_PLAN = "participant_support_plan"
+    SCHEDULE_OF_SUPPORTS = "schedule_of_supports"
+    PARTICIPANT_HANDBOOK = "participant_handbook"
+    WELCOME_PACK_EASY_READ = "welcome_pack_easy_read"
+    EXIT_FORM = "exit_form"
+    EXIT_TRANSITION_PLAN = "exit_transition_plan"
+    SATISFACTION_SURVEY = "satisfaction_survey"
+    ACKNOWLEDGEMENT_FORM = "acknowledgement_form"
+    REFUSAL_TO_CONSENT = "refusal_to_consent"
+    MONEY_HANDLING_CONSENT = "money_handling_consent"
+    PERSONAL_EMERGENCY_PLAN = "personal_emergency_plan"
+    SAFE_ENVIRONMENT_RISK_ASSESSMENT = "safe_environment_risk_assessment"
+    ADVOCATE_AUTHORITY_FORM = "advocate_authority_form"
+    OPT_OUT_AUDIT_FORM = "opt_out_audit_form"
+    PRIVACY_STATEMENT = "privacy_statement"
+    PRIVACY_POLICY = "privacy_policy"
+    PROGRESS_NOTES = "progress_notes"
+    CLIENT_CHARTER = "client_charter"
+
+    # ---- CORE MODULE — Staff / HR ----
+    STAFF_INDUCTION_CHECKLIST = "staff_induction_checklist"
+    STAFF_PERFORMANCE_REVIEW = "staff_performance_review"
+    STAFF_TRAINING_LOG = "staff_training_log"
+    INDIVIDUAL_TRAINING_REGISTER = "individual_training_register"
+    TRAINING_DEVELOPMENT_BOOK = "training_development_book"
+    SUPERVISION_RECORD = "supervision_record"
+    STAFF_HANDBOOK = "staff_handbook"
+    PERSONNEL_FILE_SETUP = "personnel_file_setup"
+    PRIVACY_CONFIDENTIALITY_AGREEMENT = "privacy_confidentiality_agreement"
+    CONFLICT_OF_INTEREST_DECLARATION = "conflict_of_interest_declaration"
+    DELEGATION_OF_AUTHORITY = "delegation_of_authority"
     WORKER_SCREENING_CHECK = "worker_screening_check"
     FIRST_AID_CERTIFICATE = "first_aid_certificate"
     NDIS_MODULE_TRAINING = "ndis_module_training"
-    PARTICIPANT_SUPPORT_PLAN = "participant_support_plan"
+
+    # ---- CORE MODULE — Medication Management ----
+    MEDICATION_ADMINISTRATION_CHART = "medication_administration_chart"
+    MEDICATION_CARE_PLAN_CONSENT = "medication_care_plan_consent"
+    MEDICATION_INCIDENT_REPORT = "medication_incident_report"
     MEDICATION_MANAGEMENT_PLAN = "medication_management_plan"
+    MEDICATION_RISK_ASSESSMENT = "medication_risk_assessment"
+    MEDICATION_PHONE_ORDER = "medication_phone_order"
+    PRN_MEDICATION_RECORD = "prn_medication_record"
+    MEDICATION_REGISTER = "medication_register"
+
+    # ---- CORE MODULE — Position Descriptions ----
+    SUPPORT_WORKER_PD = "support_worker_pd"
+    TEAM_LEADER_PD = "team_leader_pd"
+    CLINICAL_NURSE_PD = "clinical_nurse_pd"
+    REGISTERED_NURSE_PD = "registered_nurse_pd"
+    MANAGEMENT_PD = "management_pd"
+
+    # ---- MODULE 1 — Enteral Feeding ----
+    ENTERAL_FEEDING_CARE_PLAN = "enteral_feeding_care_plan"
+    ENTERAL_FEEDING_CONSENT = "enteral_feeding_consent"
+    ENTERAL_FEEDING_ASSESSMENT = "enteral_feeding_assessment"
+    ENTERAL_FEEDING_COMPETENCY = "enteral_feeding_competency"
+    FLUID_BALANCE_CHART = "fluid_balance_chart"
+    STOMA_CARE_PLAN = "stoma_care_plan"
+    WEIGHT_CHART = "weight_chart"
+
+    # ---- MODULE 1 — Wound Management ----
+    WOUND_ASSESSMENT = "wound_assessment"
+    WOUND_MANAGEMENT_CARE_PLAN = "wound_management_care_plan"
+    WOUND_MANAGEMENT_CONSENT = "wound_management_consent"
+    WOUND_PROGRESS_REPORT = "wound_progress_report"
+
+    # ---- MODULE 1 — Catheter Management ----
+    CATHETER_CARE_PLAN = "catheter_care_plan"
+    CATHETER_CONSENT = "catheter_consent"
+    CATHETER_COMPETENCY = "catheter_competency"
+
+    # ---- MODULE 1 — Subcutaneous Injections ----
+    SUBCUTANEOUS_CARE_PLAN = "subcutaneous_care_plan"
+    SUBCUTANEOUS_CONSENT = "subcutaneous_consent"
+    SUBCUTANEOUS_MEDICATION_SHEET = "subcutaneous_medication_sheet"
+    SUBCUTANEOUS_ASSESSMENT = "subcutaneous_assessment"
+
+    # ---- MODULE 1 — Tracheostomy ----
+    TRACHEOSTOMY_CARE_PLAN = "tracheostomy_care_plan"
+    TRACHEOSTOMY_CONSENT = "tracheostomy_consent"
+    TRACHEOSTOMY_COMPETENCY = "tracheostomy_competency"
+
+    # ---- MODULE 1 — Ventilator ----
+    VENTILATOR_CARE_PLAN = "ventilator_care_plan"
+    VENTILATOR_CONSENT = "ventilator_consent"
+    VENTILATOR_COMPETENCY = "ventilator_competency"
+
+    # ---- MODULE 1 — Complex Bowel ----
+    COMPLEX_BOWEL_CARE_PLAN = "complex_bowel_care_plan"
+    COMPLEX_BOWEL_CONSENT = "complex_bowel_consent"
+    COMPLEX_BOWEL_COMPETENCY = "complex_bowel_competency"
+
+    # ---- MODULE 1 — Dysphagia ----
+    DYSPHAGIA_CARE_PLAN = "dysphagia_care_plan"
+    DYSPHAGIA_CONSENT = "dysphagia_consent"
+    DYSPHAGIA_ASSESSMENT = "dysphagia_assessment"
+
+    # ---- MODULE 1 — Epilepsy ----
+    EPILEPSY_SEIZURE_MANAGEMENT_PLAN = "epilepsy_seizure_management_plan"
+    EPILEPSY_CONSENT = "epilepsy_consent"
+    EPILEPSY_COMPETENCY = "epilepsy_competency"
+
+    # ---- MODULE 2 / 2A — Behaviour Support ----
     BEHAVIOUR_SUPPORT_PLAN = "behaviour_support_plan"
-    EMERGENCY_EVACUATION_PLAN = "emergency_evacuation_plan"
+    INTERIM_BEHAVIOUR_SUPPORT_PLAN = "interim_behaviour_support_plan"
+    REVIEWED_BSP_REGISTER = "reviewed_bsp_register"
+    RESTRICTIVE_PRACTICES_MONTHLY_REPORT = "restrictive_practices_monthly_report"
+    LEGAL_RESTRAINTS_COMPETENCY = "legal_restraints_competency"
+    CLINICAL_SUPERVISION_RECORD = "clinical_supervision_record"
+    REPORTABLE_INCIDENT_24HR_BSP = "reportable_incident_24hr_bsp"
+    REPORTABLE_INCIDENT_5DAY_BSP = "reportable_incident_5day_bsp"
+    STAFF_TRAINING_NEEDS_ASSESSMENT = "staff_training_needs_assessment"
+    ONGOING_PROFESSIONAL_DEVELOPMENT_PLAN = "ongoing_professional_development_plan"
+
     UNKNOWN = "unknown"
 
 
@@ -475,12 +622,28 @@ class ClientListResponse(BaseModel):
 
 class ClientDocumentCreate(BaseModel):
     document_id: str
-    document_type: str = Field(..., pattern="^(service_agreement|consent_form|individual_support_plan|risk_assessment|progress_notes|incident_report|behaviour_support_plan|goals_plan|financial_statement|funding_agreement|communication_plan|transition_plan|other)$")
+    document_type: str = Field(..., min_length=1, description="NDIS document type — must be a valid DocumentTypeEnum value or a legacy client-document category")
     document_date: Optional[date] = None
     document_version: Optional[str] = None
     review_due_date: Optional[date] = None
     is_required: bool = False
     notes: Optional[str] = None
+
+    @validator("document_type")
+    def validate_document_type(cls, v: str) -> str:
+        # Accept any valid DocumentTypeEnum value
+        valid = {e.value for e in DocumentTypeEnum}
+        # Also accept legacy client-document categories from the original schema
+        legacy = {
+            "individual_support_plan", "goals_plan", "financial_statement",
+            "funding_agreement", "communication_plan", "transition_plan", "other",
+        }
+        if v not in valid and v not in legacy:
+            raise ValueError(
+                f"'{v}' is not a recognised document type. "
+                "Use a valid NDIS document type or one of the legacy categories."
+            )
+        return v
 
 
 class ClientDocumentResponse(BaseModel):
