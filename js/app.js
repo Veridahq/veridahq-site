@@ -601,6 +601,173 @@ function renderGapList(gaps) {
     }).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Document type → human-readable label
+// Handles all NDIS audit document types across Core, Module 1, and Module 2/2A.
+// Falls back to capitalising the snake_case string for any unmapped type.
+// ---------------------------------------------------------------------------
+const DOCUMENT_TYPE_LABELS = {
+    // Core — Governance
+    business_continuity_plan:           'Business Continuity Plan',
+    strategic_operational_plan:         'Strategic & Operational Plan',
+    conflict_of_interest_register:      'Conflict of Interest Register',
+    continuous_improvement_plan:        'Continuous Improvement Plan',
+    continuous_improvement_register:    'Continuous Improvement Register',
+    internal_audit_schedule:            'Internal Audit Schedule',
+    organisational_chart:               'Organisational Chart',
+    quality_improvement_plan:           'Quality Improvement Plan',
+    swot_analysis:                      'SWOT Analysis',
+    // Core — Business / Risk Forms
+    emergency_management_plan:          'Emergency Management Plan',
+    emergency_evacuation_plan:          'Emergency Evacuation Plan',
+    risk_assessment:                    'Risk Assessment',
+    risk_management_plan:               'Risk Management Plan',
+    risk_register:                      'Risk Register',
+    workplace_inspection_checklist:     'Workplace Inspection Checklist',
+    whs_inspection_checklist:           'WHS Inspection Checklist',
+    meeting_minutes:                    'Meeting Minutes',
+    // Core — Incident Management
+    incident_report:                    'Incident Report',
+    incident_register:                  'Incident Register',
+    incident_investigation_form:        'Incident Investigation Form',
+    reportable_incident_24hr:           'Reportable Incident (24-hr)',
+    reportable_incident_5day:           'Reportable Incident (5-day)',
+    // Core — Complaints & Feedback
+    complaint_form:                     'Complaint Form',
+    complaint_form_easy_english:        'Complaint Form (Easy English)',
+    complaints_register:                'Complaints Register',
+    complaints_process_checklist:       'Complaints Process Checklist',
+    feedback_form:                      'Feedback Form',
+    // Core — Participant Forms
+    consent_form:                       'Consent Form',
+    consent_form_easy_read:             'Consent Form (Easy Read)',
+    intake_form:                        'Intake Form',
+    intake_checklist:                   'Intake Checklist',
+    referral_form:                      'Referral Form',
+    service_agreement:                  'Service Agreement',
+    service_agreement_easy_read:        'Service Agreement (Easy Read)',
+    support_plan:                       'Support Plan',
+    support_plan_easy_read:             'Support Plan (Easy Read)',
+    support_plan_progress_report:       'Support Plan Progress Report',
+    support_plan_review_register:       'Support Plan Review Register',
+    participant_support_plan:           'Participant Support Plan',
+    schedule_of_supports:               'Schedule of Supports',
+    participant_handbook:               'Participant Handbook',
+    welcome_pack_easy_read:             'Welcome Pack (Easy Read)',
+    exit_form:                          'Exit Form',
+    exit_transition_plan:               'Exit & Transition Plan',
+    satisfaction_survey:                'Satisfaction Survey',
+    acknowledgement_form:               'Acknowledgement Form',
+    refusal_to_consent:                 'Refusal to Consent',
+    money_handling_consent:             'Money Handling Consent',
+    personal_emergency_plan:            'Personal Emergency Plan',
+    safe_environment_risk_assessment:   'Safe Environment Risk Assessment',
+    advocate_authority_form:            'Advocate Authority Form',
+    opt_out_audit_form:                 'Opt-Out Audit Form',
+    privacy_statement:                  'Privacy Statement',
+    privacy_policy:                     'Privacy Policy',
+    progress_notes:                     'Progress Notes',
+    client_charter:                     'Client Charter',
+    // Core — Staff / HR
+    staff_induction_checklist:          'Staff Induction Checklist',
+    staff_performance_review:           'Staff Performance Review',
+    staff_training_log:                 'Staff Training Log',
+    individual_training_register:       'Individual Training Register',
+    training_development_book:          'Training & Development Book',
+    supervision_record:                 'Supervision Record',
+    staff_handbook:                     'Staff Handbook',
+    personnel_file_setup:               'Personnel File Setup',
+    privacy_confidentiality_agreement:  'Privacy & Confidentiality Agreement',
+    conflict_of_interest_declaration:   'Conflict of Interest Declaration',
+    delegation_of_authority:            'Delegation of Authority',
+    worker_screening_check:             'Worker Screening Check',
+    first_aid_certificate:              'First Aid Certificate',
+    ndis_module_training:               'NDIS Module Training',
+    // Core — Medication Management
+    medication_administration_chart:    'Medication Administration Chart',
+    medication_care_plan_consent:       'Medication Care Plan & Consent',
+    medication_incident_report:         'Medication Incident Report',
+    medication_management_plan:         'Medication Management Plan',
+    medication_risk_assessment:         'Medication Risk Assessment',
+    medication_phone_order:             'Medication Phone Order',
+    prn_medication_record:              'PRN Medication Record',
+    medication_register:                'Medication Register',
+    // Core — Position Descriptions
+    support_worker_pd:                  'Support Worker PD',
+    team_leader_pd:                     'Team Leader PD',
+    clinical_nurse_pd:                  'Clinical Nurse PD',
+    registered_nurse_pd:                'Registered Nurse PD',
+    management_pd:                      'Management PD',
+    // Module 1 — Enteral Feeding
+    enteral_feeding_care_plan:          'Enteral Feeding Care Plan',
+    enteral_feeding_consent:            'Enteral Feeding Consent',
+    enteral_feeding_assessment:         'Enteral Feeding Assessment',
+    enteral_feeding_competency:         'Enteral Feeding Competency',
+    fluid_balance_chart:                'Fluid Balance Chart',
+    stoma_care_plan:                    'Stoma Care Plan',
+    weight_chart:                       'Weight Chart',
+    // Module 1 — Wound Management
+    wound_assessment:                   'Wound Assessment',
+    wound_management_care_plan:         'Wound Management Care Plan',
+    wound_management_consent:           'Wound Management Consent',
+    wound_progress_report:              'Wound Progress Report',
+    // Module 1 — Catheter Management
+    catheter_care_plan:                 'Catheter Care Plan',
+    catheter_consent:                   'Catheter Consent',
+    catheter_competency:                'Catheter Competency',
+    // Module 1 — Subcutaneous Injections
+    subcutaneous_care_plan:             'Subcutaneous Care Plan',
+    subcutaneous_consent:               'Subcutaneous Consent',
+    subcutaneous_medication_sheet:      'Subcutaneous Medication Sheet',
+    subcutaneous_assessment:            'Subcutaneous Assessment',
+    // Module 1 — Tracheostomy
+    tracheostomy_care_plan:             'Tracheostomy Care Plan',
+    tracheostomy_consent:               'Tracheostomy Consent',
+    tracheostomy_competency:            'Tracheostomy Competency',
+    // Module 1 — Ventilator
+    ventilator_care_plan:               'Ventilator Care Plan',
+    ventilator_consent:                 'Ventilator Consent',
+    ventilator_competency:              'Ventilator Competency',
+    // Module 1 — Complex Bowel
+    complex_bowel_care_plan:            'Complex Bowel Care Plan',
+    complex_bowel_consent:              'Complex Bowel Consent',
+    complex_bowel_competency:           'Complex Bowel Competency',
+    // Module 1 — Dysphagia
+    dysphagia_care_plan:                'Dysphagia Care Plan',
+    dysphagia_consent:                  'Dysphagia Consent',
+    dysphagia_assessment:               'Dysphagia Assessment',
+    // Module 1 — Epilepsy
+    epilepsy_seizure_management_plan:   'Epilepsy Seizure Management Plan',
+    epilepsy_consent:                   'Epilepsy Consent',
+    epilepsy_competency:                'Epilepsy Competency',
+    // Module 2 / 2A — Behaviour Support
+    behaviour_support_plan:                 'Behaviour Support Plan',
+    interim_behaviour_support_plan:         'Interim Behaviour Support Plan',
+    reviewed_bsp_register:                  'Reviewed BSP Register',
+    restrictive_practices_monthly_report:   'Restrictive Practices Monthly Report',
+    legal_restraints_competency:            'Legal Restraints Competency',
+    clinical_supervision_record:            'Clinical Supervision Record',
+    reportable_incident_24hr_bsp:           'Reportable Incident 24hr (BSP)',
+    reportable_incident_5day_bsp:           'Reportable Incident 5-day (BSP)',
+    staff_training_needs_assessment:        'Staff Training Needs Assessment',
+    ongoing_professional_development_plan:  'Ongoing Professional Development Plan',
+    // Fallback
+    unknown: 'Unclassified Document',
+};
+
+/**
+ * Returns a human-readable label for an NDIS document type string.
+ * Falls back to title-casing the snake_case value for unmapped types.
+ * @param {string|null|undefined} docType
+ * @returns {string}
+ */
+function formatDocumentType(docType) {
+    if (!docType || docType === 'unknown') return 'Unclassified';
+    if (DOCUMENT_TYPE_LABELS[docType]) return DOCUMENT_TYPE_LABELS[docType];
+    // Fallback: convert snake_case to Title Case
+    return docType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function renderDocumentsGrid(documents) {
     const grid = document.getElementById('documentsGrid');
     if (!grid) return;
@@ -642,10 +809,15 @@ function renderDocumentsGrid(documents) {
             statusBadge = '<span class="status-badge" style="background: #F3F4F6; color: #6B7280;">⏳ Pending</span>';
         }
 
+        const docTypeLabel = doc.document_type
+            ? formatDocumentType(doc.document_type)
+            : null;
+
         return `
             <div class="document-card">
                 <div class="doc-icon">${icon}</div>
                 <div class="doc-name">${escapeHtml(doc.file_name || doc.name || 'Untitled')}</div>
+                ${docTypeLabel ? `<div class="doc-type" title="${escapeHtml(doc.document_type)}">${escapeHtml(docTypeLabel)}</div>` : ''}
                 <div class="doc-date">Uploaded ${date}</div>
                 <div class="doc-status">${statusBadge}</div>
                 <div class="doc-actions">
