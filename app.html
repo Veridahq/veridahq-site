@@ -590,8 +590,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">NDIS Participant Number</label>
-                    <input type="text" class="form-input" id="clientNdisNumber" placeholder="e.g., 123456789">
+                    <label class="form-label">NDIS Participant Number *</label>
+                    <input type="text" class="form-input" id="clientNdisNumber" placeholder="e.g., 123456789" required>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -626,6 +626,38 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Staff Modal -->
+    <div id="addStaffModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeAddStaffModal()">×</button>
+            <h2>Add Staff Member</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">A password-reset link will be sent to their email so they can set their own password.</p>
+
+            <form id="addStaffForm" onsubmit="handleAddStaff(event)">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" class="form-input" id="staffFullName" placeholder="Jane Smith" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address *</label>
+                    <input type="email" class="form-input" id="staffEmail" placeholder="jane.smith@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select class="form-input" id="staffRole">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div id="addStaffError" style="display:none; color:#ef4444; font-size:14px; margin-bottom:12px;"></div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Add Staff Member</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddStaffModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>

@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
-from app.routers import auth, documents, compliance, organizations, dashboard, clients
+from app.routers import auth, documents, compliance, organizations, dashboard, clients, staff
 
 # ---------------------------------------------------------------------------
 # Logging configuration
@@ -155,6 +155,11 @@ app.include_router(
     clients.router,
     prefix=f"{settings.api_prefix}/clients",
     tags=["Clients"],
+)
+app.include_router(
+    staff.router,
+    prefix=f"{settings.api_prefix}/staff",
+    tags=["Staff"],
 )
 
 

@@ -405,6 +405,8 @@ function switchTab(tabName) {
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
     document.querySelector('.tab-content').scrollTop = 0;
+
+    if (tabName === 'staff') loadStaffList();
 }
 
 // ========== CHARTS ==========
@@ -1500,13 +1502,100 @@ async function triggerClientComplianceCheck() {
     }
 }
 
-// ========== STAFF & REPORTS (placeholders for now) ==========
+// ========== STAFF ==========
 
 function openAddStaffModal() {
-    const name = prompt('Enter staff member name:');
-    if (name) {
-        showToast(`${name} has been added to your staff list.`);
+    document.getElementById('addStaffError').style.display = 'none';
+    document.getElementById('addStaffModal').style.display = 'flex';
+}
+
+function closeAddStaffModal() {
+    document.getElementById('addStaffModal').style.display = 'none';
+    document.getElementById('addStaffForm').reset();
+    document.getElementById('addStaffError').style.display = 'none';
+}
+
+async function handleAddStaff(e) {
+    e.preventDefault();
+
+    const staffData = {
+        full_name: document.getElementById('staffFullName').value,
+        email: document.getElementById('staffEmail').value,
+        role: document.getElementById('staffRole').value,
+    };
+
+    if (isDemoMode()) {
+        showToast(`Staff member "${staffData.full_name}" added successfully!`);
+        closeAddStaffModal();
+        return;
     }
+
+    try {
+        showLoading(true);
+        const result = await apiFetch('/staff/', {
+            method: 'POST',
+            body: JSON.stringify(staffData)
+        });
+        showLoading(false);
+
+        if (result) {
+            showToast(`Staff member "${staffData.full_name}" added successfully!`);
+            closeAddStaffModal();
+            loadStaffList();
+        }
+    } catch (error) {
+        showLoading(false);
+        const errEl = document.getElementById('addStaffError');
+        errEl.textContent = 'Failed to add staff: ' + error.message;
+        errEl.style.display = 'block';
+    }
+}
+
+async function loadStaffList() {
+    if (isDemoMode() || !currentOrgId) {
+        return; // keep hardcoded demo data in HTML
+    }
+
+    try {
+        const data = await apiFetch('/staff/');
+        if (data && data.staff) {
+            renderStaffList(data.staff);
+        }
+    } catch (error) {
+        console.error('Failed to load staff:', error);
+    }
+}
+
+function renderStaffList(staffMembers) {
+    const tbody = document.querySelector('.staff-table tbody');
+    if (!tbody) return;
+
+    if (!staffMembers || staffMembers.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align:center; padding:40px; color:#6b7280;">
+                    No staff members yet. Add your first staff member above.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = staffMembers.map(member => {
+        const name = escapeHtml(member.full_name || member.email || 'Unknown');
+        const role = escapeHtml(member.role || 'member');
+        const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        return `
+            <tr>
+                <td><strong>${name}</strong></td>
+                <td>${roleLabel}</td>
+                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function handleSettingsSave(e) {
