@@ -251,7 +251,7 @@ async function handleLogin(e) {
         }
 
         // Persist session
-        localStorage.setItem('authToken', data.access_token);
+        localStorage.setItem('accessToken', data.access_token);
         localStorage.setItem('refreshToken', data.refresh_token);
         localStorage.setItem('currentUser', JSON.stringify({
             ...data.user,
