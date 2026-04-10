@@ -405,6 +405,8 @@ function switchTab(tabName) {
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
     document.querySelector('.tab-content').scrollTop = 0;
+
+    if (tabName === 'staff') loadStaffList();
 }
 
 // ========== CHARTS ==========
@@ -1500,12 +1502,122 @@ async function triggerClientComplianceCheck() {
     }
 }
 
-// ========== STAFF & REPORTS (placeholders for now) ==========
+// ========== STAFF ==========
 
 function openAddStaffModal() {
-    const name = prompt('Enter staff member name:');
-    if (name) {
-        showToast(`${name} has been added to your staff list.`);
+    document.getElementById('staffFormError').style.display = 'none';
+    document.getElementById('addStaffModal').style.display = 'flex';
+}
+
+function closeAddStaffModal() {
+    document.getElementById('addStaffModal').style.display = 'none';
+    document.getElementById('addStaffForm').reset();
+    document.getElementById('staffFormError').style.display = 'none';
+}
+
+async function loadStaffList() {
+    if (isDemoMode()) {
+        renderDemoStaff();
+        return;
+    }
+    const tbody = document.getElementById('staffTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;padding:24px;">Loading staff...</td></tr>';
+    try {
+        const result = await apiFetch('/staff/');
+        if (!result || !result.staff) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;padding:24px;">No staff members found.</td></tr>';
+            return;
+        }
+        if (result.staff.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;padding:24px;">No staff members yet. Click "Add Staff Member" to get started.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = result.staff.map(m => {
+            const screening = m.worker_screening_number
+                ? (m.worker_screening_expiry && new Date(m.worker_screening_expiry) < new Date()
+                    ? `<span class="badge badge-danger">✗ Expired</span>`
+                    : `<span class="badge badge-success">✓ ${m.worker_screening_number}</span>`)
+                : `<span class="badge badge-warning">— Not set</span>`;
+            return `<tr>
+                <td><strong>${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</strong></td>
+                <td>${escapeHtml(m.role)}</td>
+                <td>${escapeHtml(m.email)}</td>
+                <td>${m.employment_type ? escapeHtml(m.employment_type.replace('_', ' ')) : '—'}</td>
+                <td>${screening}</td>
+                <td><span class="badge ${m.status === 'active' ? 'badge-success' : 'badge-danger'}">${m.status}</span></td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#dc2626;padding:24px;">Failed to load staff: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+function renderDemoStaff() {
+    const tbody = document.getElementById('staffTableBody');
+    if (!tbody) return;
+    const demoStaff = [
+        { first_name: 'Sarah', last_name: 'Johnson', role: 'Compliance Officer', email: 'sarah@example.com', employment_type: 'full_time', worker_screening_number: 'WWC123', worker_screening_expiry: '2026-12-01', status: 'active' },
+        { first_name: 'Marcus', last_name: 'Chen', role: 'Support Worker', email: 'marcus@example.com', employment_type: 'part_time', worker_screening_number: null, worker_screening_expiry: null, status: 'active' },
+        { first_name: 'Emma', last_name: 'Rodriguez', role: 'Support Worker', email: 'emma@example.com', employment_type: 'casual', worker_screening_number: 'WWC456', worker_screening_expiry: '2025-01-01', status: 'active' },
+    ];
+    tbody.innerHTML = demoStaff.map(m => {
+        const screening = m.worker_screening_number
+            ? (m.worker_screening_expiry && new Date(m.worker_screening_expiry) < new Date()
+                ? `<span class="badge badge-danger">✗ Expired</span>`
+                : `<span class="badge badge-success">✓ ${m.worker_screening_number}</span>`)
+            : `<span class="badge badge-warning">— Not set</span>`;
+        return `<tr>
+            <td><strong>${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</strong></td>
+            <td>${escapeHtml(m.role)}</td>
+            <td>${escapeHtml(m.email)}</td>
+            <td>${m.employment_type ? escapeHtml(m.employment_type.replace('_', ' ')) : '—'}</td>
+            <td>${screening}</td>
+            <td><span class="badge badge-success">${m.status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+async function handleAddStaff(e) {
+    e.preventDefault();
+    const errEl = document.getElementById('staffFormError');
+    errEl.style.display = 'none';
+
+    const staffData = {
+        first_name: document.getElementById('staffFirstName').value.trim(),
+        last_name: document.getElementById('staffLastName').value.trim(),
+        email: document.getElementById('staffEmail').value.trim(),
+        role: document.getElementById('staffRole').value,
+        phone_number: document.getElementById('staffPhone').value.trim() || null,
+        employment_type: document.getElementById('staffEmploymentType').value || null,
+        start_date: document.getElementById('staffStartDate').value || null,
+        worker_screening_number: document.getElementById('staffScreeningNumber').value.trim() || null,
+        worker_screening_expiry: document.getElementById('staffScreeningExpiry').value || null,
+    };
+
+    if (isDemoMode()) {
+        showToast(`Staff member "${staffData.first_name} ${staffData.last_name}" added successfully!`);
+        closeAddStaffModal();
+        renderDemoStaff();
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const result = await apiFetch('/staff/', {
+            method: 'POST',
+            body: JSON.stringify(staffData)
+        });
+        showLoading(false);
+        if (result) {
+            showToast(`Staff member "${staffData.first_name} ${staffData.last_name}" added successfully!`);
+            closeAddStaffModal();
+            loadStaffList();
+        }
+    } catch (error) {
+        showLoading(false);
+        errEl.textContent = 'Failed to add staff member: ' + error.message;
+        errEl.style.display = 'block';
     }
 }
 

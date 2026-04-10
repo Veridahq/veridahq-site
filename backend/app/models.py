@@ -708,3 +708,56 @@ class ClientComplianceCheckResponse(BaseModel):
 class ClientComplianceCheckListResponse(BaseModel):
     checks: List[ClientComplianceCheckResponse]
     total: int
+
+
+# =============================================================================
+# Staff Models
+# =============================================================================
+
+class StaffCreate(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: str = Field(..., min_length=1)
+    email: EmailStr
+    role: str = Field(..., min_length=1)
+    phone_number: Optional[str] = None
+    employment_type: Optional[str] = Field(None, pattern="^(full_time|part_time|casual|contractor)$")
+    start_date: Optional[date] = None
+    worker_screening_number: Optional[str] = None
+    worker_screening_expiry: Optional[date] = None
+
+
+class StaffUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
+    phone_number: Optional[str] = None
+    employment_type: Optional[str] = Field(None, pattern="^(full_time|part_time|casual|contractor)$")
+    start_date: Optional[date] = None
+    worker_screening_number: Optional[str] = None
+    worker_screening_expiry: Optional[date] = None
+    status: Optional[str] = Field(None, pattern="^(active|inactive)$")
+
+
+class StaffResponse(BaseModel):
+    id: str
+    organization_id: str
+    first_name: str
+    last_name: str
+    email: str
+    role: str
+    phone_number: Optional[str]
+    employment_type: Optional[str]
+    start_date: Optional[date]
+    worker_screening_number: Optional[str]
+    worker_screening_expiry: Optional[date]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class StaffListResponse(BaseModel):
+    staff: List[StaffResponse]
+    total: int
+    page: int
+    per_page: int

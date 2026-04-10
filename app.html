@@ -363,53 +363,14 @@
                                     <tr>
                                         <th>Name</th>
                                         <th>Role</th>
-                                        <th>Disability Awareness</th>
-                                        <th>First Aid</th>
-                                        <th>NDIS Standards</th>
-                                        <th>Action</th>
+                                        <th>Email</th>
+                                        <th>Employment</th>
+                                        <th>Worker Screening</th>
+                                        <th>Status</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>Sarah Johnson</strong></td>
-                                        <td>Compliance Officer</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-danger">✗ Expired</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Marcus Chen</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-warning">⚠ Expires Soon</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Emma Rodriguez</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-danger">✗ Missing</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>David Park</strong></td>
-                                        <td>Manager</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Lisa Thompson</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
+                                <tbody id="staffTableBody">
+                                    <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:24px;">Loading staff...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -626,6 +587,87 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Staff Modal -->
+    <div id="addStaffModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeAddStaffModal()">×</button>
+            <h2>Add Staff Member</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Enter the staff member's information below</p>
+
+            <form id="addStaffForm" onsubmit="handleAddStaff(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="staffFirstName" placeholder="Jane" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="staffLastName" placeholder="Smith" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Email *</label>
+                        <input type="email" class="form-input" id="staffEmail" placeholder="jane.smith@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-input" id="staffPhone" placeholder="+61 4 1234 5678">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Role *</label>
+                        <select class="form-input" id="staffRole" required>
+                            <option value="">Select role...</option>
+                            <option value="Support Worker">Support Worker</option>
+                            <option value="Senior Support Worker">Senior Support Worker</option>
+                            <option value="Team Leader">Team Leader</option>
+                            <option value="Compliance Officer">Compliance Officer</option>
+                            <option value="Manager">Manager</option>
+                            <option value="Administrator">Administrator</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Employment Type</label>
+                        <select class="form-input" id="staffEmploymentType">
+                            <option value="full_time">Full Time</option>
+                            <option value="part_time">Part Time</option>
+                            <option value="casual">Casual</option>
+                            <option value="contractor">Contractor</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" class="form-input" id="staffStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Worker Screening Number</label>
+                        <input type="text" class="form-input" id="staffScreeningNumber" placeholder="e.g., WWC1234567">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Worker Screening Expiry</label>
+                    <input type="date" class="form-input" id="staffScreeningExpiry">
+                </div>
+
+                <div id="staffFormError" style="display:none; color:#dc2626; font-size:14px; margin-top:8px;"></div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Add Staff Member</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddStaffModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
