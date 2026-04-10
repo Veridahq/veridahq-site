@@ -79,24 +79,24 @@ async def sign_up(request: SignUpRequest):
 
         user_id = auth_response.user.id
 
-        # Optionally create an organisation
-        organization_id = None
-        if request.organization_name:
-            org_response = supabase_admin.table("organizations").insert({
-                "name": request.organization_name,
-                "plan_tier": "essentials",
-            }).execute()
+        # Always create an organisation — use provided name or derive one from the user's full name
+        org_name = request.organization_name or f"{request.full_name}'s Organisation"
+        org_response = supabase_admin.table("organizations").insert({
+            "name": org_name,
+            "plan_tier": "essentials",
+        }).execute()
 
-            if org_response.data:
-                organization_id = org_response.data[0]["id"]
-                logger.info(f"Created organisation '{request.organization_name}' ({organization_id})")
+        organization_id = None
+        if org_response.data:
+            organization_id = org_response.data[0]["id"]
+            logger.info(f"Created organisation '{org_name}' ({organization_id})")
 
         # Create the user profile
         supabase_admin.table("profiles").insert({
             "id": user_id,
             "email": request.email,
             "full_name": request.full_name,
-            "role": "owner" if organization_id else "member",
+            "role": "owner",
             "organization_id": organization_id,
         }).execute()
 

@@ -32,22 +32,48 @@ def get_user_org(auth_data: dict) -> str:
     """
     Retrieve the organisation ID for the current user.
 
-    Raises 400 if the user has not been assigned to an organisation yet.
+    If the user has no organisation (e.g. signed up without providing one),
+    automatically creates a personal organisation and links the profile.
+    This ensures users who skipped the org-name field during signup can still
+    upload documents and create clients without manual intervention.
     """
     user = auth_data["user"]
     profile = (
         supabase_admin.table("profiles")
-        .select("organization_id")
+        .select("organization_id, full_name")
         .eq("id", user.id)
         .single()
         .execute()
     )
-    if not profile.data or not profile.data.get("organization_id"):
-        raise HTTPException(
-            status_code=400,
-            detail="User is not associated with an organisation. Create or join an organisation first.",
-        )
-    return profile.data["organization_id"]
+    if not profile.data:
+        raise HTTPException(status_code=404, detail="User profile not found.")
+
+    org_id = profile.data.get("organization_id")
+    if org_id:
+        return org_id
+
+    # Auto-create an organisation for users who signed up without one
+    full_name = profile.data.get("full_name") or (user.email.split("@")[0] if user.email else "User")
+    org_name = f"{full_name}'s Organisation"
+
+    org_response = supabase_admin.table("organizations").insert({
+        "name": org_name,
+        "plan_tier": "essentials",
+    }).execute()
+
+    if not org_response.data:
+        raise HTTPException(status_code=500, detail="Failed to create organisation for user.")
+
+    new_org_id = org_response.data[0]["id"]
+
+    # Link the profile to the new organisation and promote to owner
+    supabase_admin.table("profiles").update({
+        "organization_id": new_org_id,
+        "role": "owner",
+    }).eq("id", user.id).execute()
+
+    logger.info(f"Auto-created organisation '{org_name}' ({new_org_id}) for user {user.id}")
+    return new_org_id
 
 
 # ---------------------------------------------------------------------------
