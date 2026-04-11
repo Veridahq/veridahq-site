@@ -112,7 +112,7 @@ async def list_clients(
     query = supabase_admin.table("clients").select(
         "*",
         count="exact",
-    ).eq("organization_id", org_id).eq("deleted_at", None)
+    ).eq("organization_id", org_id).is_("deleted_at", "null")
 
     if status:
         query = query.eq("status", status)
@@ -149,7 +149,7 @@ async def get_client(
 
     response = supabase_admin.table("clients").select("*").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).single().execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").single().execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -176,7 +176,7 @@ async def update_client(
     # Verify client exists
     existing = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not existing.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -220,7 +220,7 @@ async def delete_client(
     # Verify client exists
     existing = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not existing.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -258,7 +258,7 @@ async def link_document_to_client(
     # Verify client exists
     client_check = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not client_check.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -314,7 +314,7 @@ async def list_client_documents(
     # Verify client exists
     client_check = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not client_check.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -361,7 +361,7 @@ async def trigger_compliance_check(
     # Verify client exists
     client_check = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not client_check.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -440,7 +440,7 @@ async def list_client_compliance_checks(
     # Verify client exists
     client_check = supabase_admin.table("clients").select("id").eq(
         "id", client_id
-    ).eq("organization_id", org_id).eq("deleted_at", None).execute()
+    ).eq("organization_id", org_id).is_("deleted_at", "null").execute()
 
     if not client_check.data:
         raise HTTPException(status_code=404, detail="Client not found")
