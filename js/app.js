@@ -1073,8 +1073,18 @@ function showClients() {
 }
 
 async function loadClientsList() {
-    if (isDemoMode() || !currentOrgId) {
+    if (isDemoMode()) {
         renderDemoClients();
+        return;
+    }
+    if (!currentOrgId) {
+        const grid = document.getElementById('clientsList');
+        if (grid) grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: #6b7280;">
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                <p style="font-size: 16px; font-weight: 500; margin-bottom: 8px;">Account not linked to an organisation</p>
+                <p>Please contact support or sign out and sign up again.</p>
+            </div>`;
         return;
     }
 
@@ -1235,6 +1245,11 @@ async function handleAddClient(e) {
         showToast(`Client "${clientData.first_name} ${clientData.last_name}" added successfully!`);
         closeAddClientModal();
         renderDemoClients();
+        return;
+    }
+
+    if (!currentOrgId) {
+        showToast('Your account is not linked to an organisation. Please sign out and sign up again.', 'error');
         return;
     }
 
