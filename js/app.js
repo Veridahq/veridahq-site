@@ -406,6 +406,7 @@ function switchTab(tabName) {
 
     document.querySelector('.tab-content').scrollTop = 0;
 
+    if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
 }
 
