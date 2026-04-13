@@ -75,15 +75,11 @@ async function apiFetch(endpoint, options = {}) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    showLoading(true);
-
     try {
         const response = await fetch(url, {
             ...options,
             headers,
         });
-
-        showLoading(false);
 
         if (response.status === 401) {
             localStorage.removeItem('accessToken');
@@ -100,7 +96,6 @@ async function apiFetch(endpoint, options = {}) {
 
         return await response.json();
     } catch (error) {
-        showLoading(false);
         console.error('API Error:', error);
         throw error;
     }
@@ -152,38 +147,56 @@ window.addEventListener('load', async () => {
         attachEventListeners();
         renderDemoData();
     } else {
-        try {
-            const userData = await apiFetch('/auth/me');
+        // Show dashboard immediately — don't block on /auth/me
+        document.getElementById('authScreen').style.display = 'none';
+        document.getElementById('appShell').style.display = 'flex';
+
+        // Restore cached user info instantly if available
+        const cachedUser = localStorage.getItem('currentUser');
+        if (cachedUser) {
+            try {
+                const parsed = JSON.parse(cachedUser);
+                currentUser = parsed;
+                currentOrgId = parsed.organization_id;
+                if (parsed.organization && parsed.organization.name) {
+                    document.getElementById('orgName').textContent = parsed.organization.name;
+                }
+                if (parsed.full_name) {
+                    const initials = parsed.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    const avatar = document.querySelector('.navbar-right div[title="Profile"]');
+                    if (avatar) avatar.textContent = initials;
+                }
+            } catch (_) {}
+        }
+
+        initCharts();
+        attachEventListeners();
+        loadDashboardData();
+
+        // Refresh user data in background (non-blocking)
+        apiFetch('/auth/me').then(userData => {
             if (userData) {
                 currentUser = userData;
                 currentOrgId = userData.organization_id;
-
-                document.getElementById('authScreen').style.display = 'none';
-                document.getElementById('appShell').style.display = 'flex';
+                localStorage.setItem('currentUser', JSON.stringify(userData));
 
                 if (userData.organization && userData.organization.name) {
                     document.getElementById('orgName').textContent = userData.organization.name;
                 }
-
-                // Update profile avatar initials
                 if (userData.full_name) {
                     const initials = userData.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                     const avatar = document.querySelector('.navbar-right div[title="Profile"]');
                     if (avatar) avatar.textContent = initials;
                 }
-
-                initCharts();
-                attachEventListeners();
-                loadDashboardData();
             }
-        } catch (error) {
-            console.error('Auth check failed:', error);
+        }).catch(error => {
+            console.error('Auth refresh failed:', error);
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('currentUser');
             document.getElementById('authScreen').style.display = 'flex';
             document.getElementById('appShell').style.display = 'none';
-        }
+        });
     }
 });
 
@@ -194,8 +207,10 @@ async function handleAuthLogin(e) {
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
 
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+
     try {
-        showLoading(true);
         const response = await apiFetch('/auth/signin', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
@@ -204,6 +219,7 @@ async function handleAuthLogin(e) {
         if (response && response.access_token) {
             localStorage.setItem('accessToken', response.access_token);
             localStorage.setItem('refreshToken', response.refresh_token);
+            localStorage.setItem('currentUser', JSON.stringify(response.user));
             currentUser = response.user;
             currentOrgId = response.user.organization_id;
 
@@ -217,10 +233,10 @@ async function handleAuthLogin(e) {
             attachEventListeners();
             loadDashboardData();
         }
-        showLoading(false);
     } catch (error) {
-        showLoading(false);
         showToast('Login failed: ' + error.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
     }
 }
 
