@@ -796,10 +796,11 @@ function renderDocumentsGrid(documents) {
     };
 
     grid.innerHTML = documents.map(doc => {
-        const ext = (doc.file_name || '').split('.').pop().toLowerCase();
+        const filename = doc.original_filename || doc.file_name || doc.name || 'Untitled';
+        const ext = filename.split('.').pop().toLowerCase();
         const icon = iconMap[ext] || iconMap['default'];
-        const date = doc.uploaded_at ? timeAgo(new Date(doc.uploaded_at)) : 'Unknown';
-        const status = doc.compliance_status || doc.status || 'pending';
+        const date = (doc.created_at || doc.uploaded_at) ? timeAgo(new Date(doc.created_at || doc.uploaded_at)) : 'Unknown';
+        const status = doc.processing_status || doc.compliance_status || doc.status || 'pending';
         let statusBadge;
 
         if (status === 'compliant' || status === 'completed') {
@@ -819,13 +820,14 @@ function renderDocumentsGrid(documents) {
         return `
             <div class="document-card">
                 <div class="doc-icon">${icon}</div>
-                <div class="doc-name">${escapeHtml(doc.file_name || doc.name || 'Untitled')}</div>
+                <div class="doc-name">${escapeHtml(filename)}</div>
                 ${docTypeLabel ? `<div class="doc-type" title="${escapeHtml(doc.document_type)}">${escapeHtml(docTypeLabel)}</div>` : ''}
                 <div class="doc-date">Uploaded ${date}</div>
                 <div class="doc-status">${statusBadge}</div>
                 <div class="doc-actions">
-                    <button class="btn btn-small" onclick="viewDocument('${doc.id}')">View</button>
-                    <button class="btn btn-small" onclick="deleteDocument('${doc.id}')">Delete</button>
+                    <button class="btn btn-small" onclick="openDocumentFile('${doc.id}')" title="Open in new tab">Open</button>
+                    <button class="btn btn-small" onclick="viewDocument('${doc.id}')">Details</button>
+                    <button class="btn btn-small" onclick="deleteDocument('${doc.id}')" style="color:#EF4444;">Delete</button>
                 </div>
             </div>
         `;
@@ -1031,12 +1033,103 @@ async function viewDocument(docId) {
     }
 
     try {
-        const doc = await apiFetch(`/documents/${docId}`);
-        if (doc) {
-            showToast(`${doc.original_filename} — ${doc.processing_status || 'pending'}`, 'info');
+        // Fetch document detail and compliance scores in parallel
+        const [doc, scoresResp] = await Promise.all([
+            apiFetch(`/documents/${docId}`),
+            apiFetch(`/compliance/scores?document_id=${docId}`).catch(() => null),
+        ]);
+
+        if (!doc) {
+            showToast('Document not found.', 'error');
+            return;
         }
+
+        const scores = (scoresResp && scoresResp.scores) ? scoresResp.scores : [];
+        const statusLabel = doc.processing_status || 'pending';
+        const docTypeLabel = doc.document_type ? formatDocumentType(doc.document_type) : 'Unclassified';
+
+        // Build scores HTML
+        let scoresHtml = '';
+        if (scores.length > 0) {
+            scoresHtml = `
+                <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    ${scores.map(s => {
+                        const pct = Math.round((s.score || 0) * 100);
+                        const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
+                        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
+                            <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
+                            <span style="font-weight:600;color:${color};">${pct}%</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            `;
+        } else if (statusLabel === 'completed') {
+            scoresHtml = '<p style="color:#6b7280;font-size:13px;margin-top:12px;">No compliance scores recorded for this document.</p>';
+        }
+
+        // Build modal HTML
+        const modalHtml = `
+            <div id="docDetailOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+                <div style="background:white;border-radius:12px;max-width:560px;width:90%;max-height:85vh;overflow-y:auto;padding:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                        <h3 style="margin:0;font-size:18px;font-weight:600;">${escapeHtml(doc.original_filename || 'Document')}</h3>
+                        <button onclick="document.getElementById('docDetailOverlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;">&times;</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;margin-bottom:16px;">
+                        <div><span style="color:#6b7280;">Type:</span> <strong>${escapeHtml(docTypeLabel)}</strong></div>
+                        <div><span style="color:#6b7280;">Status:</span> <strong>${escapeHtml(statusLabel)}</strong></div>
+                        <div><span style="color:#6b7280;">Size:</span> <strong>${doc.file_size ? (doc.file_size / 1024).toFixed(1) + ' KB' : 'N/A'}</strong></div>
+                        <div><span style="color:#6b7280;">Uploaded:</span> <strong>${doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'N/A'}</strong></div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-bottom:16px;">
+                        <button class="btn btn-primary" onclick="openDocumentFile('${doc.id}')">Open File</button>
+                        <button class="btn btn-small" onclick="downloadDocumentFile('${doc.id}')">Download</button>
+                    </div>
+                    ${scoresHtml}
+                    ${doc.processing_error ? `<div style="margin-top:12px;padding:10px;background:#FEF2F2;border-radius:8px;color:#DC2626;font-size:13px;"><strong>Processing Error:</strong> ${escapeHtml(doc.processing_error)}</div>` : ''}
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any, then insert
+        const existing = document.getElementById('docDetailOverlay');
+        if (existing) existing.remove();
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
     } catch (error) {
         showToast('Failed to load document details: ' + error.message, 'error');
+    }
+}
+
+async function openDocumentFile(docId) {
+    try {
+        const result = await apiFetch(`/documents/${docId}/download`);
+        if (result && result.url) {
+            window.open(result.url, '_blank');
+        } else {
+            showToast('Could not generate file URL.', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to open file: ' + error.message, 'error');
+    }
+}
+
+async function downloadDocumentFile(docId) {
+    try {
+        const result = await apiFetch(`/documents/${docId}/download`);
+        if (result && result.url) {
+            const a = document.createElement('a');
+            a.href = result.url;
+            a.download = result.filename || 'document';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } else {
+            showToast('Could not generate download URL.', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to download file: ' + error.message, 'error');
     }
 }
 
