@@ -1028,7 +1028,7 @@ async function handleFileUpload(e) {
 
 async function viewDocument(docId) {
     if (isDemoMode()) {
-        showToast('Document details view is available with a real account.', 'info');
+        showToast('Document viewing is available with a real account.', 'info');
         return;
     }
 
@@ -1098,15 +1098,15 @@ async function viewDocument(docId) {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
     } catch (error) {
-        showToast('Failed to load document details: ' + error.message, 'error');
+        showToast('Failed to generate view URL: ' + error.message, 'error');
     }
 }
 
 async function openDocumentFile(docId) {
     try {
-        const result = await apiFetch(`/documents/${docId}/download`);
+        const result = await apiFetch(`/documents/${docId}/view`);
         if (result && result.url) {
-            window.open(result.url, '_blank');
+            window.open(result.url, '_blank', 'noopener,noreferrer');
         } else {
             showToast('Could not generate file URL.', 'error');
         }
