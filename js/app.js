@@ -1026,17 +1026,17 @@ async function handleFileUpload(e) {
 
 async function viewDocument(docId) {
     if (isDemoMode()) {
-        showToast('Document details view is available with a real account.', 'info');
+        showToast('Document viewing is available with a real account.', 'info');
         return;
     }
 
     try {
-        const doc = await apiFetch(`/documents/${docId}`);
-        if (doc) {
-            showToast(`${doc.original_filename} — ${doc.processing_status || 'pending'}`, 'info');
+        const result = await apiFetch(`/documents/${docId}/view`);
+        if (result && result.url) {
+            window.open(result.url, '_blank', 'noopener,noreferrer');
         }
     } catch (error) {
-        showToast('Failed to load document details: ' + error.message, 'error');
+        showToast('Failed to generate view URL: ' + error.message, 'error');
     }
 }
 

@@ -385,6 +385,51 @@ async def get_document_download_url(
 
 
 # ---------------------------------------------------------------------------
+# GET /{document_id}/view
+# ---------------------------------------------------------------------------
+@router.get("/{document_id}/view")
+async def get_document_view_url(
+    document_id: str,
+    auth_data: dict = Depends(get_current_user),
+):
+    """
+    Generate a short-lived signed URL (60 minutes) for viewing the original file inline.
+
+    Returns: { "url": "<signed_url>", "filename": "<original_filename>" }
+    """
+    org_id = get_user_org(auth_data)
+
+    doc_response = (
+        supabase_admin.table("documents")
+        .select("storage_path, original_filename")
+        .eq("id", document_id)
+        .eq("organization_id", org_id)
+        .single()
+        .execute()
+    )
+
+    if not doc_response.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    storage_path = doc_response.data["storage_path"]
+    original_filename = doc_response.data.get("original_filename", "document")
+
+    try:
+        signed = supabase_admin.storage.from_("documents").create_signed_url(
+            path=storage_path,
+            expires_in=3600,  # 1 hour
+        )
+        signed_url = signed.get("signedURL") or signed.get("signed_url") or signed.get("data", {}).get("signedURL")
+        if not signed_url:
+            raise ValueError("No signed URL returned from storage")
+    except Exception as e:
+        logger.error(f"Failed to generate view URL for {storage_path}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not generate view URL")
+
+    return {"url": signed_url, "filename": original_filename}
+
+
+# ---------------------------------------------------------------------------
 # GET /{document_id}/jobs
 # ---------------------------------------------------------------------------
 @router.get("/{document_id}/jobs")
