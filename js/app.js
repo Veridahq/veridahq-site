@@ -1706,10 +1706,17 @@ function renderStaffList(staffMembers) {
         return;
     }
 
+    const selfId = currentUser && currentUser.id;
+
     tbody.innerHTML = staffMembers.map(member => {
         const name = escapeHtml(member.full_name || member.email || 'Unknown');
         const role = escapeHtml(member.role || 'member');
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        const isSelf = member.id === selfId;
+        const actions = isSelf
+            ? `<span style="color:#9ca3af; font-size:13px;">(you)</span>`
+            : `<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
+               <button class="btn btn-small btn-danger" onclick="confirmRemoveStaff('${member.id}','${name}')">Remove</button>`;
         return `
             <tr>
                 <td><strong>${name}</strong></td>
@@ -1717,10 +1724,69 @@ function renderStaffList(staffMembers) {
                 <td><span class="badge badge-warning">— Not checked</span></td>
                 <td><span class="badge badge-warning">— Not checked</span></td>
                 <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
+                <td>${actions}</td>
             </tr>
         `;
     }).join('');
+}
+
+function openEditStaffModal(userId, currentRole, name) {
+    document.getElementById('editStaffUserId').value = userId;
+    document.getElementById('editStaffName').textContent = name;
+    document.getElementById('editStaffRole').value = currentRole;
+    document.getElementById('editStaffError').style.display = 'none';
+    document.getElementById('editStaffModal').style.display = 'flex';
+}
+
+function closeEditStaffModal() {
+    document.getElementById('editStaffModal').style.display = 'none';
+    document.getElementById('editStaffError').style.display = 'none';
+}
+
+async function handleEditStaff(e) {
+    e.preventDefault();
+    const userId = document.getElementById('editStaffUserId').value;
+    const role = document.getElementById('editStaffRole').value;
+
+    if (isDemoMode()) {
+        showToast('Role updated successfully!');
+        closeEditStaffModal();
+        return;
+    }
+
+    try {
+        showLoading(true);
+        await apiFetch(`/staff/${userId}`, { method: 'PUT', body: JSON.stringify({ role }) });
+        showLoading(false);
+        showToast('Role updated successfully!');
+        closeEditStaffModal();
+        loadStaffList();
+    } catch (error) {
+        showLoading(false);
+        const errEl = document.getElementById('editStaffError');
+        errEl.textContent = 'Failed to update role: ' + error.message;
+        errEl.style.display = 'block';
+    }
+}
+
+async function confirmRemoveStaff(userId, name) {
+    if (!confirm(`Remove ${name} from your organisation? They will lose access.`)) return;
+
+    if (isDemoMode()) {
+        showToast(`${name} removed.`);
+        return;
+    }
+
+    try {
+        showLoading(true);
+        await apiFetch(`/staff/${userId}`, { method: 'DELETE' });
+        showLoading(false);
+        showToast(`${name} removed from organisation.`);
+        loadStaffList();
+    } catch (error) {
+        showLoading(false);
+        showToast('Failed to remove staff member: ' + error.message, 'error');
+    }
 }
 
 function handleSettingsSave(e) {

@@ -243,6 +243,15 @@ a:hover {
     font-size: 12px;
 }
 
+.btn-danger {
+    background: #ef4444;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
 .btn-cta {
     white-space: nowrap;
 }

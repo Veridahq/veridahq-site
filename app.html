@@ -663,6 +663,31 @@
         </div>
     </div>
 
+    <!-- Edit Staff Modal -->
+    <div id="editStaffModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeEditStaffModal()">×</button>
+            <h2>Edit Staff Member</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Changing role for <strong id="editStaffName"></strong></p>
+            <input type="hidden" id="editStaffUserId">
+            <form onsubmit="handleEditStaff(event)">
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select class="form-input" id="editStaffRole">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                        <option value="owner">Owner</option>
+                    </select>
+                </div>
+                <div id="editStaffError" style="display:none; color:#ef4444; font-size:14px; margin-bottom:12px;"></div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditStaffModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="js/app.js"></script>
 </body>
 </html>

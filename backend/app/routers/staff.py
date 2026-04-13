@@ -104,3 +104,82 @@ async def list_staff(
         "staff": response.data or [],
         "total": len(response.data or []),
     }
+
+
+# ---------------------------------------------------------------------------
+# PUT /{user_id} — update role
+# ---------------------------------------------------------------------------
+class StaffUpdate(BaseModel):
+    role: str
+
+
+@router.put("/{user_id}")
+async def update_staff(
+    user_id: str,
+    request: StaffUpdate,
+    auth_data: dict = Depends(get_current_user),
+):
+    """Update a staff member's role."""
+    org_id = get_user_org(auth_data)
+    role = request.role if request.role in ("owner", "admin", "member") else "member"
+
+    existing = supabase_admin.table("profiles").select("id").eq(
+        "id", user_id
+    ).eq("organization_id", org_id).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Staff member not found in this organisation")
+
+    supabase_admin.table("profiles").update({"role": role}).eq("id", user_id).execute()
+
+    return {"id": user_id, "role": role}
+
+
+# ---------------------------------------------------------------------------
+# DELETE /{user_id} — remove from org
+# ---------------------------------------------------------------------------
+@router.delete("/{user_id}", status_code=204)
+async def remove_staff(
+    user_id: str,
+    auth_data: dict = Depends(get_current_user),
+):
+    """Remove a staff member from the organisation (clears organization_id, does not delete auth user)."""
+    org_id = get_user_org(auth_data)
+    caller_id = auth_data.get("user", {}).get("id") or auth_data.get("id")
+
+    if user_id == caller_id:
+        raise HTTPException(status_code=400, detail="You cannot remove yourself")
+
+    existing = supabase_admin.table("profiles").select("id").eq(
+        "id", user_id
+    ).eq("organization_id", org_id).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Staff member not found in this organisation")
+
+    supabase_admin.table("profiles").update({"organization_id": None}).eq("id", user_id).execute()
+
+
+# ---------------------------------------------------------------------------
+# PATCH /{user_id}/deactivate
+# ---------------------------------------------------------------------------
+@router.patch("/{user_id}/deactivate", status_code=204)
+async def deactivate_staff(
+    user_id: str,
+    auth_data: dict = Depends(get_current_user),
+):
+    """Deactivate a staff member by removing them from the organisation."""
+    org_id = get_user_org(auth_data)
+    caller_id = auth_data.get("user", {}).get("id") or auth_data.get("id")
+
+    if user_id == caller_id:
+        raise HTTPException(status_code=400, detail="You cannot deactivate yourself")
+
+    existing = supabase_admin.table("profiles").select("id").eq(
+        "id", user_id
+    ).eq("organization_id", org_id).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Staff member not found in this organisation")
+
+    supabase_admin.table("profiles").update({"organization_id": None}).eq("id", user_id).execute()
