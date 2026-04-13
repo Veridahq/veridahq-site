@@ -101,6 +101,65 @@ async function apiFetch(endpoint, options = {}) {
     }
 }
 
+// Fetch wrapper without loading overlay (used for polling)
+async function apiFetchSilent(endpoint) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const token = localStorage.getItem('accessToken');
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+        });
+        if (!response.ok) return null;
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+// Poll a compliance job until it finishes, then refresh the documents list.
+// Shows a dismissable banner so the user knows analysis is running.
+function pollJobUntilComplete(jobId) {
+    // Create a persistent banner
+    let banner = document.getElementById('analysisBanner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'analysisBanner';
+        banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b365d;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;z-index:9998;display:flex;align-items:center;gap:12px;box-shadow:0 4px 16px rgba(0,0,0,0.25);';
+        banner.innerHTML = '<div style="border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;width:16px;height:16px;animation:spin 1s linear infinite;flex-shrink:0;"></div><span id="analysisBannerText">Analysing document… this may take a few minutes.</span>';
+        document.body.appendChild(banner);
+    }
+
+    const MAX = 90; // 90 × 5 s = 7.5 min max
+    let attempts = 0;
+
+    const check = async () => {
+        const job = await apiFetchSilent(`/compliance/jobs/${jobId}`);
+        if (!job) { attempts++; if (attempts < MAX) setTimeout(check, 5000); return; }
+
+        if (job.status === 'completed') {
+            banner.remove();
+            showToast('Compliance analysis complete! Refreshing results…');
+            loadDashboardData();
+        } else if (job.status === 'failed') {
+            banner.remove();
+            showToast('Document analysis failed: ' + (job.error_message || 'Unknown error'), 'error');
+            loadDocumentsList();
+        } else {
+            // still running — update progress text
+            const pct = job.progress || 0;
+            const el = document.getElementById('analysisBannerText');
+            if (el) el.textContent = `Analysing document… ${pct}% complete.`;
+            attempts++;
+            if (attempts < MAX) setTimeout(check, 5000);
+        }
+    };
+
+    setTimeout(check, 5000);
+}
+
 // Check if in demo mode
 function isDemoMode() {
     const urlDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
@@ -1029,13 +1088,18 @@ async function handleFileUpload(e) {
             throw new Error(error.detail || 'Upload failed');
         }
 
-        await response.json();
+        const result = await response.json();
         showToast(`"${fileName}" uploaded. Compliance scan started.`);
         document.getElementById('uploadModal').style.display = 'none';
         document.getElementById('fileInput').value = '';
 
-        // Refresh documents list
+        // Refresh documents list immediately (shows document as Pending)
         loadDocumentsList();
+
+        // Poll until the background analysis job finishes
+        if (result && result.job_id) {
+            pollJobUntilComplete(result.job_id);
+        }
     } catch (error) {
         showLoading(false);
         showToast('Upload failed: ' + error.message, 'error');

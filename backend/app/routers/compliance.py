@@ -81,6 +81,7 @@ async def get_standards(
 @router.get("/scores", response_model=OverallComplianceResponse)
 async def get_compliance_scores(
     auth_data: dict = Depends(get_current_user),
+    document_id: Optional[str] = Query(None, description="Filter scores for a specific document ID"),
 ):
     """
     Get the overall compliance score and per-standard breakdown for the organisation.
@@ -103,13 +104,14 @@ async def get_compliance_scores(
     standards = {s["id"]: s for s in (standards_response.data or [])}
 
     # Fetch compliance scores joined with standard metadata
-    scores_response = (
+    scores_query = (
         supabase_admin.table("compliance_scores")
         .select("*, ndis_standards(standard_number, title, category)")
         .eq("organization_id", org_id)
-        .execute()
     )
-    scores_data = scores_response.data or []
+    if document_id:
+        scores_query = scores_query.eq("document_id", document_id)
+    scores_data = scores_query.execute().data or []
 
     # Calculate overall score (average of all scored standards)
     scored = [s for s in scores_data if s.get("score") is not None]
