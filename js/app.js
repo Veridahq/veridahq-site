@@ -1557,46 +1557,116 @@ function renderComplianceResults(client) {
     }).join('');
 }
 
-function renderLinkedDocuments(client) {
+async function renderLinkedDocuments(client) {
     const docsContainer = document.getElementById('linkedDocuments');
+    docsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Loading...</p>';
 
-    // Demo documents linked to this client
-    const documents = [
-        {
-            id: 'doc-1',
-            file_name: 'Plan Implementation Summary.pdf',
-            uploaded_at: new Date(Date.now() - 10 * 86400000),
-            status: 'compliant'
-        },
-        {
-            id: 'doc-2',
-            file_name: 'Incident Report Q1 2024.docx',
-            uploaded_at: new Date(Date.now() - 20 * 86400000),
-            status: 'gaps_found'
-        }
-    ];
-
-    if (!documents || documents.length === 0) {
-        docsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No documents linked to this client yet.</p>';
+    if (isDemoMode()) {
+        const documents = [
+            { id: 'doc-1', document_type: 'individual_support_plan', review_due_date: '2025-06-30', status: 'active', is_current: true, created_at: new Date(Date.now() - 10 * 86400000).toISOString(), notes: null },
+            { id: 'doc-2', document_type: 'incident_report', review_due_date: null, status: 'active', is_current: true, created_at: new Date(Date.now() - 20 * 86400000).toISOString(), notes: null }
+        ];
+        _renderLinkedDocumentsList(docsContainer, documents);
         return;
     }
 
-    docsContainer.innerHTML = documents.map(doc => {
-        const statusClass = doc.status === 'compliant' ? 'status-compliant' : 'status-warning';
-        const statusIcon = doc.status === 'compliant' ? '🟢' : '🟡';
-        const statusText = doc.status === 'compliant' ? 'Compliant' : 'Gaps Found';
-        const uploadedText = timeAgo(new Date(doc.uploaded_at));
+    try {
+        const data = await apiFetch(`/clients/${client.id}/documents`);
+        _renderLinkedDocumentsList(docsContainer, data.documents || []);
+    } catch (error) {
+        docsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load linked documents.</p>';
+    }
+}
+
+function _renderLinkedDocumentsList(container, documents) {
+    if (!documents || documents.length === 0) {
+        container.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No documents linked to this client yet.</p>';
+        return;
+    }
+
+    container.innerHTML = documents.map(doc => {
+        const typeLabel = formatDocumentType(doc.document_type) || escapeHtml(doc.document_type);
+        const reviewText = doc.review_due_date ? `Review due: ${formatDate(doc.review_due_date)}` : 'No review date set';
+        const linkedText = timeAgo(new Date(doc.created_at));
+        const isOverdue = doc.review_due_date && new Date(doc.review_due_date) < new Date();
+        const reviewClass = isOverdue ? 'color: #ef4444;' : 'color: #6b7280;';
 
         return `
             <div class="linked-doc-card">
                 <div style="flex: 1;">
-                    <p class="linked-doc-name">${escapeHtml(doc.file_name)}</p>
-                    <p class="linked-doc-date">Uploaded ${uploadedText}</p>
+                    <p class="linked-doc-name">${escapeHtml(typeLabel)}</p>
+                    <p class="linked-doc-date" style="${reviewClass}">${reviewText}</p>
+                    <p class="linked-doc-date">Linked ${linkedText}</p>
                 </div>
-                <div class="status-badge ${statusClass}">${statusIcon} ${statusText}</div>
+                ${doc.notes ? `<p style="font-size:12px;color:#6b7280;margin-top:4px;">${escapeHtml(doc.notes)}</p>` : ''}
             </div>
         `;
     }).join('');
+}
+
+async function openLinkDocumentModal() {
+    if (!currentClientId) return;
+    document.getElementById('linkDocumentError').style.display = 'none';
+    document.getElementById('linkDocumentForm').reset();
+    document.getElementById('linkDocumentModal').style.display = 'flex';
+
+    if (isDemoMode()) {
+        document.getElementById('linkDocumentSelect').innerHTML = '<option value="">No documents available in demo mode</option>';
+        return;
+    }
+
+    try {
+        const data = await apiFetch('/documents/?per_page=100');
+        const docs = data.documents || [];
+        const select = document.getElementById('linkDocumentSelect');
+        if (docs.length === 0) {
+            select.innerHTML = '<option value="">No uploaded documents found</option>';
+        } else {
+            select.innerHTML = '<option value="">Select a document...</option>' +
+                docs.map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.original_filename || d.filename)}</option>`).join('');
+        }
+    } catch (error) {
+        document.getElementById('linkDocumentSelect').innerHTML = '<option value="">Failed to load documents</option>';
+    }
+}
+
+function closeLinkDocumentModal() {
+    document.getElementById('linkDocumentModal').style.display = 'none';
+}
+
+async function handleLinkDocument(event) {
+    event.preventDefault();
+    const errorEl = document.getElementById('linkDocumentError');
+    errorEl.style.display = 'none';
+
+    const documentId = document.getElementById('linkDocumentSelect').value;
+    const documentType = document.getElementById('linkDocumentType').value;
+    const documentDate = document.getElementById('linkDocumentDate').value;
+    const reviewDueDate = document.getElementById('linkDocumentReviewDate').value;
+    const notes = document.getElementById('linkDocumentNotes').value.trim();
+
+    if (!documentId || !documentType) {
+        errorEl.textContent = 'Please select a document and type.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    try {
+        const body = { document_id: documentId, document_type: documentType };
+        if (documentDate) body.document_date = documentDate;
+        if (reviewDueDate) body.review_due_date = reviewDueDate;
+        if (notes) body.notes = notes;
+
+        await apiFetch(`/clients/${currentClientId}/documents`, { method: 'POST', body: JSON.stringify(body) });
+        closeLinkDocumentModal();
+        showToast('Document linked successfully');
+        // Refresh linked documents list
+        const client = { id: currentClientId };
+        renderLinkedDocuments(client);
+    } catch (error) {
+        errorEl.textContent = error.message || 'Failed to link document.';
+        errorEl.style.display = 'block';
+    }
 }
 
 function closeClientDetail() {
