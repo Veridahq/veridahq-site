@@ -1026,17 +1026,31 @@ async function handleFileUpload(e) {
 
 async function viewDocument(docId) {
     if (isDemoMode()) {
-        showToast('Document details view is available with a real account.', 'info');
+        showToast('Document viewing is available with a real account.', 'info');
         return;
     }
 
     try {
-        const doc = await apiFetch(`/documents/${docId}`);
-        if (doc) {
-            showToast(`${doc.original_filename} — ${doc.processing_status || 'pending'}`, 'info');
+        const result = await apiFetch(`/documents/${docId}/view`);
+        if (!result || !result.url) {
+            showToast('Could not retrieve document URL.', 'error');
+            return;
+        }
+        const isPdf = (result.mime_type || '').toLowerCase().includes('pdf') ||
+                      (result.filename || '').toLowerCase().endsWith('.pdf');
+        if (isPdf) {
+            window.open(result.url, '_blank');
+        } else {
+            const a = document.createElement('a');
+            a.href = result.url;
+            a.download = result.filename || 'document';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
     } catch (error) {
-        showToast('Failed to load document details: ' + error.message, 'error');
+        showToast('Failed to open document: ' + error.message, 'error');
     }
 }
 
