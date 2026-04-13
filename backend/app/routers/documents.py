@@ -356,7 +356,7 @@ async def get_document_download_url(
 
     doc_response = (
         supabase_admin.table("documents")
-        .select("storage_path, original_filename")
+        .select("storage_path, original_filename, mime_type")
         .eq("id", document_id)
         .eq("organization_id", org_id)
         .single()
@@ -368,6 +368,7 @@ async def get_document_download_url(
 
     storage_path = doc_response.data["storage_path"]
     original_filename = doc_response.data.get("original_filename", "document")
+    mime_type = doc_response.data.get("mime_type", "application/octet-stream")
 
     try:
         signed = supabase_admin.storage.from_("documents").create_signed_url(
@@ -381,7 +382,7 @@ async def get_document_download_url(
         logger.error(f"Failed to generate signed URL for {storage_path}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not generate download URL")
 
-    return {"url": signed_url, "filename": original_filename}
+    return {"url": signed_url, "filename": original_filename, "mime_type": mime_type}
 
 
 # ---------------------------------------------------------------------------

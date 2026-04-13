@@ -796,10 +796,12 @@ function renderDocumentsGrid(documents) {
     };
 
     grid.innerHTML = documents.map(doc => {
-        const ext = (doc.file_name || '').split('.').pop().toLowerCase();
+        const displayName = doc.original_filename || doc.file_name || doc.name || 'Untitled';
+        const ext = displayName.split('.').pop().toLowerCase();
         const icon = iconMap[ext] || iconMap['default'];
-        const date = doc.uploaded_at ? timeAgo(new Date(doc.uploaded_at)) : 'Unknown';
-        const status = doc.compliance_status || doc.status || 'pending';
+        const dateStr = doc.created_at || doc.uploaded_at;
+        const date = dateStr ? timeAgo(new Date(dateStr)) : 'Unknown';
+        const status = doc.processing_status || doc.compliance_status || doc.status || 'pending';
         let statusBadge;
 
         if (status === 'compliant' || status === 'completed') {
@@ -819,7 +821,7 @@ function renderDocumentsGrid(documents) {
         return `
             <div class="document-card">
                 <div class="doc-icon">${icon}</div>
-                <div class="doc-name">${escapeHtml(doc.file_name || doc.name || 'Untitled')}</div>
+                <div class="doc-name">${escapeHtml(displayName)}</div>
                 ${docTypeLabel ? `<div class="doc-type" title="${escapeHtml(doc.document_type)}">${escapeHtml(docTypeLabel)}</div>` : ''}
                 <div class="doc-date">Uploaded ${date}</div>
                 <div class="doc-status">${statusBadge}</div>
@@ -1026,18 +1028,80 @@ async function handleFileUpload(e) {
 
 async function viewDocument(docId) {
     if (isDemoMode()) {
-        showToast('Document details view is available with a real account.', 'info');
+        showToast('Document viewing is available with a real account.', 'info');
         return;
     }
 
     try {
-        const doc = await apiFetch(`/documents/${docId}`);
-        if (doc) {
-            showToast(`${doc.original_filename} — ${doc.processing_status || 'pending'}`, 'info');
+        const data = await apiFetch(`/documents/${docId}/download`);
+        if (!data || !data.url) {
+            showToast('Could not generate download URL.', 'error');
+            return;
         }
+        showDocumentViewModal(data.url, data.filename || 'document', data.mime_type || '');
     } catch (error) {
-        showToast('Failed to load document details: ' + error.message, 'error');
+        showToast('Failed to open document: ' + error.message, 'error');
     }
+}
+
+function showDocumentViewModal(url, filename, mimeType) {
+    // Remove any existing modal
+    const existing = document.getElementById('docViewModal');
+    if (existing) existing.remove();
+
+    const isPdf = mimeType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf');
+
+    const modal = document.createElement('div');
+    modal.id = 'docViewModal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10001;display:flex;align-items:center;justify-content:center;';
+
+    const inner = document.createElement('div');
+    inner.style.cssText = 'background:#fff;border-radius:12px;width:90vw;max-width:900px;height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e5e7eb;flex-shrink:0;';
+    header.innerHTML = `
+        <span style="font-weight:600;color:#1b365d;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;" title="${escapeHtml(filename)}">${escapeHtml(filename)}</span>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+            <a href="${escapeHtml(url)}" download="${escapeHtml(filename)}" target="_blank"
+               style="padding:6px 14px;background:#2a9d8f;color:#fff;border-radius:6px;text-decoration:none;font-size:13px;font-weight:500;">
+               Download
+            </a>
+            <button onclick="document.getElementById('docViewModal').remove()"
+                    style="padding:6px 12px;background:#f3f4f6;color:#374151;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;">
+                Close
+            </button>
+        </div>
+    `;
+
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;overflow:hidden;';
+
+    if (isPdf) {
+        body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:none;" title="${escapeHtml(filename)}"></iframe>`;
+    } else {
+        body.style.cssText += 'display:flex;align-items:center;justify-content:center;';
+        body.innerHTML = `
+            <div style="text-align:center;padding:40px;">
+                <div style="font-size:64px;margin-bottom:20px;">📄</div>
+                <p style="font-size:18px;font-weight:600;color:#1b365d;margin-bottom:8px;">${escapeHtml(filename)}</p>
+                <p style="color:#6b7280;margin-bottom:24px;">Preview not available for this file type.</p>
+                <a href="${escapeHtml(url)}" download="${escapeHtml(filename)}" target="_blank"
+                   style="padding:10px 24px;background:#2a9d8f;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">
+                   Download File
+                </a>
+            </div>
+        `;
+    }
+
+    inner.appendChild(header);
+    inner.appendChild(body);
+    modal.appendChild(inner);
+
+    // Close on backdrop click
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.body.appendChild(modal);
 }
 
 async function deleteDocument(docId) {
