@@ -1864,6 +1864,289 @@ function handleSettingsSave(e) {
     showToast('Settings updated successfully!');
 }
 
+// ========== INTEGRATIONS (external storage) ==========
+
+const INTEGRATION_PROVIDERS = [
+    {
+        key: 'microsoft',
+        label: 'SharePoint / OneDrive',
+        blurb: 'Pull in everything your team already stores in Microsoft 365.',
+        icon: '🔷',
+        enabled: true,
+    },
+    {
+        key: 'google',
+        label: 'Google Drive',
+        blurb: 'Sync shared drives and folders from Workspace.',
+        icon: '📂',
+        enabled: false,
+    },
+    {
+        key: 'dropbox',
+        label: 'Dropbox',
+        blurb: 'Import policies and procedures straight from Dropbox.',
+        icon: '📦',
+        enabled: false,
+    },
+    {
+        key: 'box',
+        label: 'Box',
+        blurb: 'Enterprise-grade storage for regulated providers.',
+        icon: '🗄️',
+        enabled: false,
+    },
+];
+
+async function loadIntegrations() {
+    const container = document.getElementById('integrationsList');
+    if (!container) return;
+
+    let connected = [];
+    try {
+        connected = await apiFetch('/integrations/');
+        if (!Array.isArray(connected)) connected = [];
+    } catch (error) {
+        console.warn('Could not load integrations:', error);
+        connected = [];
+    }
+
+    const byProvider = Object.fromEntries(connected.map(c => [c.provider, c]));
+    container.innerHTML = INTEGRATION_PROVIDERS.map(p => {
+        const existing = byProvider[p.key];
+        return renderIntegrationCard(p, existing);
+    }).join('');
+}
+
+function renderIntegrationCard(provider, existing) {
+    const isConnected = !!existing;
+    const isComingSoon = !provider.enabled;
+
+    const statusLine = (() => {
+        if (isComingSoon) return '<span class="badge badge-muted">Coming soon</span>';
+        if (!isConnected) return '<span style="color:#6b7280; font-size:13px;">Not connected</span>';
+        const status = existing.sync_status || 'idle';
+        const when = existing.last_sync_at ? timeAgo(new Date(existing.last_sync_at)) : 'never';
+        const folderCount = (existing.root_folders || []).length;
+        const statusBadge = status === 'syncing'
+            ? '<span style="color:#2563eb; font-size:12px; font-weight:600;">Syncing…</span>'
+            : status === 'error'
+                ? '<span style="color:#ef4444; font-size:12px; font-weight:600;">Error</span>'
+                : '<span style="color:#059669; font-size:12px; font-weight:600;">Connected</span>';
+        return `
+            ${statusBadge}
+            <div style="font-size:12px; color:#6b7280; margin-top:4px;">
+                ${escapeHtml(existing.account_email || '')}<br>
+                Last sync: ${when} · ${folderCount} folder${folderCount === 1 ? '' : 's'}
+            </div>
+            ${existing.last_error ? `<div style="font-size:12px; color:#ef4444; margin-top:6px;">${escapeHtml(existing.last_error)}</div>` : ''}
+        `;
+    })();
+
+    const actions = (() => {
+        if (isComingSoon) {
+            return '<button class="btn btn-secondary" style="width:100%;" disabled>Coming soon</button>';
+        }
+        if (!isConnected) {
+            return `<button class="btn btn-primary" style="width:100%;" onclick="connectIntegration('${provider.key}')">Connect</button>`;
+        }
+        return `
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="openFolderPickerFor('${existing.id}')">Folders</button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="resyncIntegration('${existing.id}')">Resync</button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="disconnectIntegration('${existing.id}')">Disconnect</button>
+            </div>
+        `;
+    })();
+
+    return `
+        <div style="border:1px solid #e5e7eb; border-radius:10px; padding:16px; background:white; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="font-size:22px;">${provider.icon}</div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;">${provider.label}</div>
+                    <div style="font-size:12px; color:#6b7280;">${provider.blurb}</div>
+                </div>
+            </div>
+            <div>${statusLine}</div>
+            <div>${actions}</div>
+        </div>
+    `;
+}
+
+async function connectIntegration(provider) {
+    try {
+        const result = await apiFetch(`/integrations/${provider}/authorize`);
+        if (result && result.url) {
+            // Open in a new tab so the user keeps Verida open while they consent
+            window.open(result.url, '_blank', 'noopener');
+            showToast('Finish connecting in the new tab. We\'ll refresh automatically.', 'info');
+        } else {
+            showToast('Could not start OAuth flow.', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to start OAuth: ' + error.message, 'error');
+    }
+}
+
+async function resyncIntegration(integrationId) {
+    try {
+        await apiFetch(`/integrations/${integrationId}/sync`, { method: 'POST' });
+        showToast('Sync started — new documents will appear shortly.', 'info');
+        setTimeout(loadIntegrations, 1500);
+    } catch (error) {
+        showToast('Failed to start sync: ' + error.message, 'error');
+    }
+}
+
+async function disconnectIntegration(integrationId) {
+    if (!confirm('Disconnect this integration? Files already synced will stay in Verida.')) return;
+    try {
+        await apiFetch(`/integrations/${integrationId}`, { method: 'DELETE' });
+        showToast('Integration disconnected.');
+        loadIntegrations();
+    } catch (error) {
+        showToast('Failed to disconnect: ' + error.message, 'error');
+    }
+}
+
+// ---- Folder picker ----
+let _folderPickerSelected = new Map(); // id → {id, name, path}
+let _folderPickerStack = [];            // breadcrumb: [{id|null, name}]
+
+async function openFolderPickerFor(integrationId) {
+    _folderPickerSelected = new Map();
+    _folderPickerStack = [{ id: null, name: 'Root' }];
+    document.getElementById('folderPickerIntegrationId').value = integrationId;
+    document.getElementById('folderPickerModal').style.display = 'flex';
+    document.getElementById('folderPickerError').style.display = 'none';
+    await loadFolderPickerLevel(null);
+}
+
+async function loadFolderPickerLevel(parentId) {
+    const list = document.getElementById('folderPickerList');
+    list.innerHTML = '<div style="padding:24px; text-align:center; color:#9ca3af;">Loading folders…</div>';
+
+    const integrationId = document.getElementById('folderPickerIntegrationId').value;
+    const qs = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+    try {
+        const folders = await apiFetch(`/integrations/${integrationId}/folders${qs}`);
+        renderFolderPickerBreadcrumb();
+        if (!folders || folders.length === 0) {
+            list.innerHTML = '<div style="padding:24px; text-align:center; color:#9ca3af;">No folders at this level.</div>';
+            return;
+        }
+        list.innerHTML = folders.map(f => {
+            const selected = _folderPickerSelected.has(f.id);
+            return `
+                <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #f3f4f6;">
+                    <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleFolderSelect('${f.id}', '${escapeAttr(f.name)}', '${escapeAttr(f.path)}', this.checked)">
+                    <div style="flex:1; cursor:${f.has_children ? 'pointer' : 'default'};" onclick="${f.has_children ? `drillIntoFolder('${f.id}', '${escapeAttr(f.name)}')` : ''}">
+                        <div style="font-weight:500;">📁 ${escapeHtml(f.name)}</div>
+                        <div style="font-size:11px; color:#9ca3af;">${escapeHtml(f.path || '')}</div>
+                    </div>
+                    ${f.has_children ? `<button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="drillIntoFolder('${f.id}', '${escapeAttr(f.name)}')">Open ›</button>` : ''}
+                </div>
+            `;
+        }).join('');
+        updateFolderPickerCount();
+    } catch (error) {
+        list.innerHTML = '';
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Could not load folders: ' + error.message;
+        err.style.display = 'block';
+    }
+}
+
+function escapeAttr(str) {
+    return String(str || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function toggleFolderSelect(id, name, path, checked) {
+    if (checked) {
+        _folderPickerSelected.set(id, { id, name, path });
+    } else {
+        _folderPickerSelected.delete(id);
+    }
+    updateFolderPickerCount();
+}
+
+function updateFolderPickerCount() {
+    const el = document.getElementById('folderPickerCount');
+    const n = _folderPickerSelected.size;
+    if (el) el.textContent = `${n} folder${n === 1 ? '' : 's'} selected`;
+}
+
+function drillIntoFolder(id, name) {
+    _folderPickerStack.push({ id, name });
+    loadFolderPickerLevel(id);
+}
+
+function renderFolderPickerBreadcrumb() {
+    const el = document.getElementById('folderPickerBreadcrumb');
+    if (!el) return;
+    el.innerHTML = _folderPickerStack.map((crumb, idx) => {
+        const isLast = idx === _folderPickerStack.length - 1;
+        if (isLast) return `<span style="color:#111827; font-weight:600;">${escapeHtml(crumb.name)}</span>`;
+        return `<a href="#" style="color:#2563eb; text-decoration:none;" onclick="popFolderStackTo(${idx}); return false;">${escapeHtml(crumb.name)}</a> › `;
+    }).join('');
+}
+
+function popFolderStackTo(index) {
+    _folderPickerStack = _folderPickerStack.slice(0, index + 1);
+    const crumb = _folderPickerStack[index];
+    loadFolderPickerLevel(crumb.id);
+}
+
+function closeFolderPicker() {
+    document.getElementById('folderPickerModal').style.display = 'none';
+}
+
+async function saveFolderSelection() {
+    const integrationId = document.getElementById('folderPickerIntegrationId').value;
+    const folders = Array.from(_folderPickerSelected.values());
+    if (folders.length === 0) {
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Pick at least one folder to sync.';
+        err.style.display = 'block';
+        return;
+    }
+    try {
+        await apiFetch(`/integrations/${integrationId}/folders/select`, {
+            method: 'POST',
+            body: JSON.stringify({ folders }),
+        });
+        closeFolderPicker();
+        showToast(`Syncing ${folders.length} folder${folders.length === 1 ? '' : 's'} in the background.`, 'info');
+        setTimeout(loadIntegrations, 1500);
+    } catch (error) {
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Failed to save: ' + error.message;
+        err.style.display = 'block';
+    }
+}
+
+// When we come back from an OAuth redirect with ?integration=connected, pop the
+// folder picker automatically so the first-run experience is seamless.
+function handleIntegrationReturnFromOAuth() {
+    const hash = window.location.hash || '';
+    const queryIdx = hash.indexOf('?');
+    if (queryIdx === -1) return;
+    const params = new URLSearchParams(hash.slice(queryIdx + 1));
+    const status = params.get('integration');
+    const integrationId = params.get('id');
+    if (status === 'connected' && integrationId) {
+        // Jump to settings tab + open folder picker
+        try { switchTab('settings'); } catch (e) {}
+        setTimeout(() => {
+            loadIntegrations().then(() => openFolderPickerFor(integrationId));
+        }, 200);
+        // Clean the URL
+        history.replaceState({}, '', window.location.pathname + '#settings');
+    } else if (status === 'error') {
+        showToast('Could not connect storage: ' + (params.get('message') || 'unknown error'), 'error');
+    }
+}
+
 function generateReport() {
     showToast('Report generation started. Check your email in a few moments.', 'info');
 }
