@@ -337,7 +337,10 @@
                             </div>
 
                             <div class="client-detail-section" style="margin-top: 24px;">
-                                <h3>Linked Documents</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <h3 style="margin: 0;">Linked Documents</h3>
+                                    <button class="btn btn-primary" onclick="openLinkDocumentModal()">Link Document</button>
+                                </div>
                                 <div class="linked-documents" id="linkedDocuments">
                                     <!-- Populated by showClientDetail() -->
                                 </div>
@@ -626,6 +629,58 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Link Document Modal -->
+    <div id="linkDocumentModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeLinkDocumentModal()">×</button>
+            <h2>Link Document to Client</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Select an uploaded document and set its type for this client.</p>
+            <form id="linkDocumentForm" onsubmit="handleLinkDocument(event)">
+                <div class="form-group">
+                    <label class="form-label">Document *</label>
+                    <select class="form-input" id="linkDocumentSelect" required>
+                        <option value="">Loading documents...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Document Type *</label>
+                    <select class="form-input" id="linkDocumentType" required>
+                        <option value="">Select type...</option>
+                        <option value="individual_support_plan">Individual Support Plan</option>
+                        <option value="goals_plan">Goals Plan</option>
+                        <option value="financial_statement">Financial Statement</option>
+                        <option value="funding_agreement">Funding Agreement</option>
+                        <option value="communication_plan">Communication Plan</option>
+                        <option value="transition_plan">Transition Plan</option>
+                        <option value="incident_report">Incident Report</option>
+                        <option value="progress_note">Progress Note</option>
+                        <option value="assessment">Assessment</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Document Date</label>
+                        <input type="date" class="form-input" id="linkDocumentDate">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Review Due Date</label>
+                        <input type="date" class="form-input" id="linkDocumentReviewDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <input type="text" class="form-input" id="linkDocumentNotes" placeholder="Optional notes...">
+                </div>
+                <div id="linkDocumentError" style="display:none; color:#ef4444; font-size:14px; margin-bottom:12px;"></div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Link Document</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeLinkDocumentModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
