@@ -880,6 +880,21 @@ async function loadDashboardData() {
             document.getElementById('statDocs').textContent = totalDocs;
             updateGaugeChart(overallScore);
 
+            // Audit countdown
+            const daysWrap = document.getElementById('statAuditWrap');
+            const daysEl = document.getElementById('statAudit');
+            if (dashboardData.days_until_audit !== null && dashboardData.days_until_audit !== undefined) {
+                const d = dashboardData.days_until_audit;
+                if (daysWrap) daysWrap.style.display = '';
+                if (daysEl) {
+                    daysEl.textContent = d;
+                    daysEl.className = 'stat-value' + (d <= 30 ? ' danger' : d <= 90 ? ' warning' : '');
+                }
+            }
+
+            // Onboarding checklist
+            updateOnboardingChecklist(dashboardData);
+
             // Update trend chart if trend data exists
             if (dashboardData.trend_data && dashboardData.trend_data.length > 0) {
                 const labels = dashboardData.trend_data.map(t => t.label || t.week || '');
@@ -936,6 +951,145 @@ async function loadDocumentsList() {
         console.error('Failed to load documents:', error);
         renderDocumentsGrid([]);
     }
+}
+
+// ========== ONBOARDING CHECKLIST ==========
+
+function updateOnboardingChecklist(dashboardData) {
+    const checklist = document.getElementById('onboardingChecklist');
+    if (!checklist) return;
+
+    const hasDocs = (dashboardData.total_documents || 0) > 0;
+    const hasScore = (dashboardData.overall_compliance_score || 0) > 0;
+    const hasAuditDate = !!dashboardData.audit_date;
+
+    // Show checklist only when the account looks brand-new (no docs, no score)
+    if (hasDocs && hasScore) {
+        checklist.style.display = 'none';
+        return;
+    }
+    checklist.style.display = '';
+
+    // Mark steps complete based on what we know from the dashboard response
+    const steps = {
+        'step-org': hasAuditDate,
+        'step-doc': hasDocs,
+        'step-client': false, // can't know from dashboard — always unchecked
+        'step-staff': false,
+    };
+    Object.entries(steps).forEach(([id, done]) => {
+        const icon = document.getElementById('stepIcon-' + id.replace('step-', ''));
+        if (icon) icon.textContent = done ? '✅' : '⬜';
+        const row = document.getElementById(id);
+        if (row) row.style.opacity = done ? '0.6' : '1';
+    });
+}
+
+// ========== NOTIFICATIONS ==========
+
+let _notificationsLoaded = false;
+
+function toggleNotificationDropdown() {
+    const dropdown = document.getElementById('notificationDropdown');
+    if (!dropdown) return;
+    const isOpen = dropdown.style.display !== 'none';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen && !_notificationsLoaded) loadNotifications();
+    // Close on outside click
+    if (!isOpen) {
+        setTimeout(() => {
+            document.addEventListener('click', function closeDropdown(e) {
+                const wrap = document.getElementById('notificationBellWrap');
+                if (wrap && !wrap.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }, 0);
+    }
+}
+
+async function loadNotifications() {
+    const list = document.getElementById('notificationList');
+    const badge = document.getElementById('notificationBadge');
+    if (!list) return;
+
+    if (isDemoMode()) {
+        const items = [
+            { label: 'John Smith — NDIS plan expires in 18 days', urgent: true },
+            { label: 'Policy Manual — review due in 25 days', urgent: true },
+            { label: 'Jane Doe — NDIS plan expires in 45 days', urgent: false },
+        ];
+        _renderNotificationItems(list, badge, items);
+        _notificationsLoaded = true;
+        return;
+    }
+
+    if (!currentOrgId) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Sign in to view alerts.</p>';
+        return;
+    }
+
+    try {
+        const today = new Date();
+        const in90 = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
+
+        const [clientsResp, docsResp] = await Promise.all([
+            apiFetch('/clients/?per_page=100').catch(() => null),
+            apiFetch('/documents/?per_page=100').catch(() => null),
+        ]);
+
+        const items = [];
+
+        // Client plan expiry
+        const clients = (clientsResp && (clientsResp.clients || clientsResp)) || [];
+        (Array.isArray(clients) ? clients : []).forEach(c => {
+            if (!c.current_plan_end_date) return;
+            const expiry = new Date(c.current_plan_end_date);
+            const daysLeft = Math.round((expiry - today) / 86400000);
+            if (daysLeft <= 90 && daysLeft >= 0) {
+                const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Participant';
+                items.push({ label: `${name} — NDIS plan expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, urgent: daysLeft <= 30 });
+            }
+        });
+
+        // Document review due
+        const docs = (docsResp && (docsResp.documents || docsResp)) || [];
+        (Array.isArray(docs) ? docs : []).forEach(d => {
+            if (!d.review_due_date) return;
+            const due = new Date(d.review_due_date);
+            const daysLeft = Math.round((due - today) / 86400000);
+            if (daysLeft <= 90 && daysLeft >= 0) {
+                const name = d.original_filename || d.document_type || 'Document';
+                items.push({ label: `${name} — review due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, urgent: daysLeft <= 30 });
+            }
+        });
+
+        items.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+        _renderNotificationItems(list, badge, items);
+        _notificationsLoaded = true;
+    } catch (error) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Could not load alerts.</p>';
+    }
+}
+
+function _renderNotificationItems(list, badge, items) {
+    if (items.length === 0) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">No upcoming alerts.</p>';
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+    const urgentCount = items.filter(i => i.urgent).length;
+    if (badge) {
+        badge.textContent = urgentCount || items.length;
+        badge.style.display = '';
+    }
+    list.innerHTML = items.map(item => `
+        <div style="padding:10px 16px;border-bottom:1px solid #f9fafb;display:flex;align-items:start;gap:10px;">
+            <span style="font-size:16px;flex-shrink:0;">${item.urgent ? '🔴' : '🟡'}</span>
+            <span style="font-size:13px;color:#374151;line-height:1.4;">${escapeHtml(item.label)}</span>
+        </div>
+    `).join('');
 }
 
 // ========== DEMO DATA ==========
