@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     from_email: str = "Verida <noreply@veridahq.com>"
 
+    # Microsoft / Azure AD (SharePoint + OneDrive integration)
+    microsoft_client_id: str = ""
+    microsoft_client_secret: str = ""
+    microsoft_redirect_uri: str = "https://verida-api.onrender.com/api/integrations/microsoft/callback"
+
     # API
     api_prefix: str = "/api"
 
