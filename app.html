@@ -490,6 +490,16 @@
                             <p class="subtitle">Manage your account and organisation settings</p>
                         </div>
 
+                        <!-- Integrations -->
+                        <div style="margin-bottom: 32px;">
+                            <h2 style="font-size: 20px; font-weight: 600; color: #1b365d; margin-bottom: 16px;">Integrations</h2>
+                            <p style="color: #6b7280; font-size: 14px; margin-bottom: 20px;">Connect cloud storage to automatically sync and scan documents for NDIS compliance.</p>
+                            <div id="integrationsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                                <!-- Populated by JS -->
+                                <div style="padding: 40px; text-align: center; color: #9ca3af; font-size: 14px;">Loading integrations…</div>
+                            </div>
+                        </div>
+
                         <div class="settings-grid">
                             <div class="settings-card">
                                 <h3>Organisation Details</h3>
@@ -564,6 +574,37 @@
                 <p style="font-size: 12px; color: #6b7280;">or</p>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
                 <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Picker Modal (integrations) -->
+    <div id="folderPickerModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeFolderPicker()">×</button>
+            <h2>Select Folders to Sync</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Choose the folders whose documents will be imported and scanned automatically.</p>
+
+            <div id="folderPickerBreadcrumb" style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+                <span style="cursor: pointer; color: #2a9d8f;" onclick="loadFolderPickerRoot()">Root</span>
+            </div>
+
+            <div id="folderPickerList" style="max-height: 320px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; margin-bottom: 16px;">
+                <p style="text-align: center; color: #9ca3af; padding: 20px;">Loading folders…</p>
+            </div>
+
+            <div id="folderPickerSelected" style="margin-bottom: 16px; display: none;">
+                <p style="font-size: 13px; font-weight: 600; color: #1b365d; margin-bottom: 8px;">Selected folders:</p>
+                <div id="folderPickerSelectedList" style="font-size: 13px; color: #374151;"></div>
+            </div>
+
+            <div id="folderPickerError" style="display: none; color: #ef4444; font-size: 13px; margin-bottom: 12px;"></div>
+
+            <div style="display: flex; gap: 12px; margin-top: 8px;">
+                <button id="folderPickerConfirm" class="btn btn-primary" style="flex: 1;" onclick="confirmFolderSelection()" disabled>
+                    Start Sync
+                </button>
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeFolderPicker()">Cancel</button>
             </div>
         </div>
     </div>

@@ -128,6 +128,15 @@ window.addEventListener('load', async () => {
     // Check for password reset token first
     if (checkForResetToken()) return;
 
+    // Check for OAuth integration callback (#settings?integration=connected)
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?').replace('settings?', ''));
+    if (window.location.hash.startsWith('#settings') && hashParams.get('integration') === 'connected') {
+        // Clear the hash so reload doesn't re-trigger
+        history.replaceState(null, '', window.location.pathname + window.location.search + '#settings');
+        // Will fall through to normal auth flow, then switch to settings + open folder picker
+        window._integrationJustConnected = true;
+    }
+
     const accessToken = localStorage.getItem('accessToken');
     const demoUser = localStorage.getItem('demoUser');
 
@@ -172,6 +181,20 @@ window.addEventListener('load', async () => {
         initCharts();
         attachEventListeners();
         loadDashboardData();
+
+        // If we just returned from a successful OAuth flow, switch to Settings
+        // and open the folder picker so the user can choose what to sync.
+        if (window._integrationJustConnected) {
+            delete window._integrationJustConnected;
+            setTimeout(() => {
+                switchTab('settings');
+                loadIntegrations().then(() => {
+                    // Open the folder picker for the most recently connected integration
+                    const firstRow = document.querySelector('.integration-card[data-integration-id]');
+                    if (firstRow) openFolderPicker(firstRow.dataset.integrationId);
+                });
+            }, 800);
+        }
 
         // Refresh user data in background (non-blocking)
         apiFetch('/auth/me').then(userData => {
@@ -424,6 +447,7 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
+    if (tabName === 'settings') loadIntegrations();
 }
 
 // ========== CHARTS ==========
@@ -833,9 +857,15 @@ function renderDocumentsGrid(documents) {
             ? formatDocumentType(doc.document_type)
             : null;
 
+        const source = doc.source || 'upload';
+        const sourceBadge = source === 'integration'
+            ? `<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;background:#EFF6FF;color:#1D4ED8;margin-bottom:4px;">SharePoint</span>`
+            : `<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;background:#F3F4F6;color:#6B7280;margin-bottom:4px;">Upload</span>`;
+
         return `
             <div class="document-card">
                 <div class="doc-icon">${icon}</div>
+                ${sourceBadge}
                 <div class="doc-name">${escapeHtml(filename)}</div>
                 ${docTypeLabel ? `<div class="doc-type" title="${escapeHtml(doc.document_type)}">${escapeHtml(docTypeLabel)}</div>` : ''}
                 <div class="doc-date">Uploaded ${date}</div>
@@ -1932,3 +1962,325 @@ document.addEventListener('keydown', (e) => {
         });
     }
 });
+
+// =============================================================================
+// INTEGRATIONS
+// =============================================================================
+
+// State for the folder picker
+let _folderPickerIntegrationId = null;
+let _folderPickerSelected = {};   // { id: { id, name } }
+let _folderPickerBreadcrumb = []; // [{ id, name }]
+
+// ---------------------------------------------------------------------------
+// Render helpers
+// ---------------------------------------------------------------------------
+
+function _integrationProviderMeta(provider) {
+    const map = {
+        microsoft: { label: 'SharePoint / OneDrive', icon: '🔷', color: '#0078D4' },
+        google:    { label: 'Google Drive',           icon: '🟢', color: '#34A853' },
+        dropbox:   { label: 'Dropbox',                icon: '🔵', color: '#0061FF' },
+        box:       { label: 'Box',                    icon: '🟦', color: '#0061D5' },
+    };
+    return map[provider] || { label: provider, icon: '🔗', color: '#6B7280' };
+}
+
+function renderIntegrationsGrid(integrations) {
+    const grid = document.getElementById('integrationsGrid');
+    if (!grid) return;
+
+    // ---- Active connected cards ----
+    const activeCards = integrations.map(intg => {
+        const meta = _integrationProviderMeta(intg.provider);
+        const lastSync = intg.last_sync_at
+            ? `Last synced ${timeAgo(new Date(intg.last_sync_at))}`
+            : 'Never synced';
+        const statusColor = intg.sync_status === 'error' ? '#EF4444' :
+                            intg.sync_status === 'syncing' ? '#F59E0B' : '#10B981';
+        const statusLabel = intg.sync_status === 'syncing' ? 'Syncing…'
+                          : intg.sync_status === 'error'   ? 'Error'
+                          :                                  'Connected';
+
+        return `
+        <div class="settings-card integration-card" data-integration-id="${intg.id}" style="border-top: 3px solid ${meta.color};">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <span style="font-size:28px;">${meta.icon}</span>
+                <div>
+                    <div style="font-weight:600; color:#1b365d;">${meta.label}</div>
+                    <div style="font-size:12px; color:#6b7280;">${escapeHtml(intg.account_email || '')}</div>
+                </div>
+                <span style="margin-left:auto; font-size:12px; font-weight:600; color:${statusColor};">● ${statusLabel}</span>
+            </div>
+            <div style="font-size:12px; color:#9ca3af; margin-bottom:16px;">${lastSync}</div>
+            ${intg.last_error ? `<div style="font-size:12px; color:#EF4444; margin-bottom:12px; word-break:break-word;">${escapeHtml(intg.last_error)}</div>` : ''}
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-small" onclick="openFolderPicker('${intg.id}')">Choose Folders</button>
+                <button class="btn btn-small" onclick="resyncIntegration('${intg.id}')" ${intg.sync_status === 'syncing' ? 'disabled' : ''}>Resync</button>
+                <button class="btn btn-small" onclick="disconnectIntegration('${intg.id}', '${escapeHtml(meta.label)}')" style="color:#EF4444;">Disconnect</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    // ---- Coming-soon provider cards ----
+    const connectedProviders = new Set(integrations.map(i => i.provider));
+    const allProviders = ['microsoft', 'google', 'dropbox', 'box'];
+
+    const comingSoon = allProviders.map(provider => {
+        if (connectedProviders.has(provider)) return ''; // already shown above
+        const meta = _integrationProviderMeta(provider);
+        const isLive = provider === 'microsoft';
+
+        if (isLive) {
+            return `
+            <div class="settings-card" style="border-top: 3px solid ${meta.color};">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <span style="font-size:28px;">${meta.icon}</span>
+                    <div style="font-weight:600; color:#1b365d;">${meta.label}</div>
+                </div>
+                <p style="font-size:13px; color:#6b7280; margin-bottom:16px;">Sync documents from SharePoint document libraries and OneDrive folders directly into Verida.</p>
+                <button class="btn btn-primary" style="width:100%;" onclick="connectIntegration('microsoft')">Connect SharePoint / OneDrive</button>
+            </div>`;
+        }
+
+        return `
+        <div class="settings-card" style="opacity:0.55; border-top: 3px solid #D1D5DB;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <span style="font-size:28px;">${meta.icon}</span>
+                <div style="font-weight:600; color:#6b7280;">${meta.label}</div>
+            </div>
+            <p style="font-size:13px; color:#9ca3af; margin-bottom:16px;">Coming soon.</p>
+            <button class="btn btn-secondary" style="width:100%;" disabled>Connect</button>
+        </div>`;
+    }).join('');
+
+    grid.innerHTML = activeCards + comingSoon;
+}
+
+// ---------------------------------------------------------------------------
+// API calls
+// ---------------------------------------------------------------------------
+
+async function loadIntegrations() {
+    const grid = document.getElementById('integrationsGrid');
+    if (!grid) return;
+
+    if (isDemoMode()) {
+        renderIntegrationsGrid([]);
+        return;
+    }
+
+    try {
+        const data = await apiFetch('/integrations/');
+        renderIntegrationsGrid(data?.integrations || []);
+    } catch (err) {
+        console.error('Failed to load integrations:', err);
+        renderIntegrationsGrid([]);
+    }
+}
+
+async function connectIntegration(provider) {
+    if (isDemoMode()) {
+        showToast('Connect your Azure credentials on Render to use this feature.', 'info');
+        return;
+    }
+    try {
+        showLoading(true);
+        const data = await apiFetch(`/integrations/${provider}/authorize`);
+        showLoading(false);
+        if (data?.url) {
+            window.open(data.url, '_blank', 'noopener,noreferrer');
+            showToast('Sign in with Microsoft in the new tab. The page will update when done.', 'info');
+        }
+    } catch (err) {
+        showLoading(false);
+        showToast('Could not start connection: ' + err.message, 'error');
+    }
+}
+
+async function resyncIntegration(integrationId) {
+    if (isDemoMode()) { showToast('Resync triggered.'); return; }
+    try {
+        showLoading(true);
+        await apiFetch(`/integrations/${integrationId}/sync`, { method: 'POST' });
+        showLoading(false);
+        showToast('Sync started — new documents will appear shortly.');
+        loadIntegrations();
+    } catch (err) {
+        showLoading(false);
+        showToast('Sync failed: ' + err.message, 'error');
+    }
+}
+
+async function disconnectIntegration(integrationId, label) {
+    if (!confirm(`Disconnect ${label}? Previously synced documents will remain in Verida.`)) return;
+    if (isDemoMode()) { showToast(`${label} disconnected.`); return; }
+    try {
+        showLoading(true);
+        await apiFetch(`/integrations/${integrationId}`, { method: 'DELETE' });
+        showLoading(false);
+        showToast(`${label} disconnected.`);
+        loadIntegrations();
+    } catch (err) {
+        showLoading(false);
+        showToast('Disconnect failed: ' + err.message, 'error');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Folder picker
+// ---------------------------------------------------------------------------
+
+function openFolderPicker(integrationId) {
+    _folderPickerIntegrationId = integrationId;
+    _folderPickerSelected = {};
+    _folderPickerBreadcrumb = [];
+    document.getElementById('folderPickerError').style.display = 'none';
+    document.getElementById('folderPickerSelected').style.display = 'none';
+    document.getElementById('folderPickerModal').style.display = 'flex';
+    loadFolderPickerRoot();
+}
+
+function closeFolderPicker() {
+    document.getElementById('folderPickerModal').style.display = 'none';
+    _folderPickerIntegrationId = null;
+    _folderPickerSelected = {};
+    _folderPickerBreadcrumb = [];
+}
+
+async function loadFolderPickerRoot() {
+    _folderPickerBreadcrumb = [];
+    _updateBreadcrumb();
+    await _loadFolders(null);
+}
+
+async function _loadFolders(parentId) {
+    const list = document.getElementById('folderPickerList');
+    list.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:20px;">Loading…</p>';
+
+    try {
+        const qs = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+        const data = await apiFetch(`/integrations/${_folderPickerIntegrationId}/folders${qs}`);
+        const folders = data?.folders || [];
+
+        if (folders.length === 0) {
+            list.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:20px;">No folders found.</p>';
+            return;
+        }
+
+        list.innerHTML = folders.map(f => {
+            const icon = f.type === 'site' ? '🏢' : f.type === 'drive' ? '💾' : '📁';
+            const checked = !!_folderPickerSelected[f.id];
+            return `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 8px;border-bottom:1px solid #f3f4f6;cursor:pointer;"
+                 onclick="_toggleFolderSelection('${f.id}', ${JSON.stringify(f.name).replace(/"/g, '&quot;')}, event)">
+                <input type="checkbox" id="fp_${f.id}" ${checked ? 'checked' : ''}
+                       onclick="event.stopPropagation(); _toggleFolderSelection('${f.id}', '${escapeHtml(f.name)}', event)">
+                <span style="font-size:18px;">${icon}</span>
+                <span style="flex:1;font-size:14px;color:#1b365d;">${escapeHtml(f.name)}</span>
+                <button class="btn btn-small" style="font-size:11px;"
+                        onclick="event.stopPropagation(); _drillIntoFolder('${f.id}', '${escapeHtml(f.name)}')">Open →</button>
+            </div>`;
+        }).join('');
+    } catch (err) {
+        list.innerHTML = `<p style="text-align:center;color:#ef4444;padding:20px;">Failed to load folders: ${escapeHtml(err.message)}</p>`;
+    }
+}
+
+function _toggleFolderSelection(folderId, folderName, event) {
+    // Don't bubble from the "Open →" button
+    if (event && event.target && event.target.tagName === 'BUTTON') return;
+
+    if (_folderPickerSelected[folderId]) {
+        delete _folderPickerSelected[folderId];
+    } else {
+        _folderPickerSelected[folderId] = { id: folderId, name: folderName };
+    }
+
+    // Sync checkbox visual
+    const cb = document.getElementById(`fp_${folderId}`);
+    if (cb) cb.checked = !!_folderPickerSelected[folderId];
+
+    _updateSelectedPanel();
+}
+
+function _drillIntoFolder(folderId, folderName) {
+    _folderPickerBreadcrumb.push({ id: folderId, name: folderName });
+    _updateBreadcrumb();
+    _loadFolders(folderId);
+}
+
+function _updateBreadcrumb() {
+    const el = document.getElementById('folderPickerBreadcrumb');
+    if (!el) return;
+    let html = `<span style="cursor:pointer;color:#2a9d8f;" onclick="loadFolderPickerRoot()">Root</span>`;
+    _folderPickerBreadcrumb.forEach((crumb, i) => {
+        html += ` / `;
+        if (i < _folderPickerBreadcrumb.length - 1) {
+            html += `<span style="cursor:pointer;color:#2a9d8f;"
+                         onclick="_jumpToBreadcrumb(${i})">${escapeHtml(crumb.name)}</span>`;
+        } else {
+            html += `<span style="color:#1b365d;font-weight:500;">${escapeHtml(crumb.name)}</span>`;
+        }
+    });
+    el.innerHTML = html;
+}
+
+function _jumpToBreadcrumb(index) {
+    const crumb = _folderPickerBreadcrumb[index];
+    _folderPickerBreadcrumb = _folderPickerBreadcrumb.slice(0, index + 1);
+    _updateBreadcrumb();
+    _loadFolders(crumb.id);
+}
+
+function _updateSelectedPanel() {
+    const panel = document.getElementById('folderPickerSelected');
+    const list = document.getElementById('folderPickerSelectedList');
+    const btn = document.getElementById('folderPickerConfirm');
+    const entries = Object.values(_folderPickerSelected);
+
+    if (entries.length === 0) {
+        panel.style.display = 'none';
+        btn.disabled = true;
+        return;
+    }
+
+    panel.style.display = 'block';
+    btn.disabled = false;
+    list.innerHTML = entries.map(f =>
+        `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span>📁</span>
+            <span>${escapeHtml(f.name)}</span>
+            <span style="cursor:pointer;color:#EF4444;margin-left:auto;font-size:16px;line-height:1;"
+                  onclick="_toggleFolderSelection('${f.id}', '${escapeHtml(f.name)}', {})">×</span>
+        </div>`
+    ).join('');
+}
+
+async function confirmFolderSelection() {
+    const folderIds = Object.keys(_folderPickerSelected);
+    if (folderIds.length === 0) return;
+
+    const errEl = document.getElementById('folderPickerError');
+    const btn = document.getElementById('folderPickerConfirm');
+
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Starting sync…';
+
+    try {
+        await apiFetch(`/integrations/${_folderPickerIntegrationId}/folders/select`, {
+            method: 'POST',
+            body: JSON.stringify({ folder_ids: folderIds }),
+        });
+        closeFolderPicker();
+        showToast('Sync started! Documents will appear in the Documents tab shortly.');
+        loadIntegrations();
+        loadDocumentsList();
+    } catch (err) {
+        errEl.textContent = 'Failed to save selection: ' + err.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Start Sync';
+    }
+}
