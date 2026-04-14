@@ -326,7 +326,10 @@
                                     <h2 id="clientDetailName">Client Name</h2>
                                     <p class="subtitle" id="clientDetailNdis">NDIS Participant #</p>
                                 </div>
-                                <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <button class="btn btn-secondary" onclick="showEditClientModal()" style="font-size:13px;">Edit</button>
+                                    <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                </div>
                             </div>
 
                             <div class="client-detail-grid">
@@ -642,6 +645,73 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Client Modal -->
+    <div id="editClientModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeEditClientModal()">×</button>
+            <h2>Edit Client</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Update the client's information below</p>
+            <p id="editClientError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:12px;"></p>
+
+            <form id="editClientForm" onsubmit="handleEditClient(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="editClientFirstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="editClientLastName" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Date of Birth</label>
+                    <input type="date" class="form-input" id="editClientDob">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">NDIS Participant Number</label>
+                    <input type="text" class="form-input" id="editClientNdisNumber" placeholder="e.g., 123456789">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="editClientEmail">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="editClientPhone">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Plan Start Date</label>
+                        <input type="date" class="form-input" id="editClientPlanStart">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Plan End Date</label>
+                        <input type="date" class="form-input" id="editClientPlanEnd">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="editClientBehaviour">
+                        <span>Requires Behaviour Support</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditClientModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>

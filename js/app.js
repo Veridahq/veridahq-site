@@ -1447,9 +1447,15 @@ function renderClientsList(clients) {
     grid.innerHTML = clients.map(client => {
         const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
         const ndisNumber = client.ndis_participant_number || 'N/A';
-        const planDates = client.current_plan_start_date && client.current_plan_end_date
-            ? `${formatDate(client.current_plan_start_date)} – ${formatDate(client.current_plan_end_date)}`
-            : 'Not set';
+        // Plan dates with expiry colour-coding
+        let planDates = 'Not set';
+        let planDateStyle = '';
+        if (client.current_plan_start_date && client.current_plan_end_date) {
+            const daysLeft = Math.round((new Date(client.current_plan_end_date) - new Date()) / 86400000);
+            planDates = `${formatDate(client.current_plan_start_date)} – ${formatDate(client.current_plan_end_date)}`;
+            if (daysLeft <= 30) planDateStyle = 'color:#EF4444;font-weight:600;';
+            else if (daysLeft <= 90) planDateStyle = 'color:#F59E0B;font-weight:500;';
+        }
 
         // Determine status badge
         let statusClass = 'status-active';
@@ -1471,7 +1477,7 @@ function renderClientsList(clients) {
                 <div class="client-card-body">
                     <h3>${escapeHtml(fullName)}</h3>
                     <p class="client-ndis">NDIS #${escapeHtml(ndisNumber)}</p>
-                    <p class="client-dates">${escapeHtml(planDates)}</p>
+                    <p class="client-dates" style="${planDateStyle}">${escapeHtml(planDates)}</p>
                     ${client.requires_behaviour_support ? '<p class="client-behaviour">🎯 Behaviour Support</p>' : ''}
                 </div>
                 <div class="client-card-footer">
@@ -1665,6 +1671,7 @@ async function showClientDetail(clientId) {
     try {
         const client = await apiFetch(`/clients/${clientId}`);
         if (client) {
+            _currentClientData = client;
             renderClientDetailView(client);
         }
     } catch (error) {
@@ -1883,6 +1890,73 @@ async function handleLinkDocument(event) {
 function closeClientDetail() {
     document.getElementById('clientDetailView').style.display = 'none';
     document.getElementById('clientsList').style.display = 'grid';
+}
+
+let _currentClientData = null; // cache for edit modal pre-fill
+
+function showEditClientModal() {
+    if (isDemoMode()) {
+        showToast('Client editing is not available in demo mode.', 'info');
+        return;
+    }
+    if (!currentClientId) return;
+
+    // Pre-fill from cached client data if we have it
+    const c = _currentClientData;
+    if (c) {
+        document.getElementById('editClientFirstName').value = c.first_name || '';
+        document.getElementById('editClientLastName').value = c.last_name || '';
+        document.getElementById('editClientDob').value = c.date_of_birth || '';
+        document.getElementById('editClientNdisNumber').value = c.ndis_participant_number || '';
+        document.getElementById('editClientEmail').value = c.email || '';
+        document.getElementById('editClientPhone').value = c.phone_number || '';
+        document.getElementById('editClientPlanStart').value = c.current_plan_start_date || '';
+        document.getElementById('editClientPlanEnd').value = c.current_plan_end_date || '';
+        document.getElementById('editClientBehaviour').checked = !!c.requires_behaviour_support;
+    }
+    document.getElementById('editClientError').style.display = 'none';
+    document.getElementById('editClientModal').style.display = 'flex';
+}
+
+function closeEditClientModal() {
+    document.getElementById('editClientModal').style.display = 'none';
+}
+
+async function handleEditClient(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('editClientError');
+    errorEl.style.display = 'none';
+
+    const payload = {
+        first_name: document.getElementById('editClientFirstName').value.trim(),
+        last_name: document.getElementById('editClientLastName').value.trim(),
+        ndis_participant_number: document.getElementById('editClientNdisNumber').value.trim() || null,
+        email: document.getElementById('editClientEmail').value.trim() || null,
+        phone_number: document.getElementById('editClientPhone').value.trim() || null,
+        date_of_birth: document.getElementById('editClientDob').value || null,
+        current_plan_start_date: document.getElementById('editClientPlanStart').value || null,
+        current_plan_end_date: document.getElementById('editClientPlanEnd').value || null,
+        requires_behaviour_support: document.getElementById('editClientBehaviour').checked,
+    };
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+        const updated = await apiFetch(`/clients/${currentClientId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        _currentClientData = updated;
+        closeEditClientModal();
+        showToast('Client updated.');
+        showClientDetail(currentClientId);
+    } catch (error) {
+        errorEl.textContent = error.message || 'Failed to save client.';
+        errorEl.style.display = 'block';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+    }
 }
 
 async function triggerClientComplianceCheck() {
