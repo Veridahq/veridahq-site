@@ -424,6 +424,8 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
+    if (tabName === 'settings') loadSettingsTab();
+    if (tabName === 'reports') loadReportsTab();
 }
 
 // ========== CHARTS ==========
@@ -878,6 +880,21 @@ async function loadDashboardData() {
             document.getElementById('statDocs').textContent = totalDocs;
             updateGaugeChart(overallScore);
 
+            // Audit countdown
+            const daysWrap = document.getElementById('statAuditWrap');
+            const daysEl = document.getElementById('statAudit');
+            if (dashboardData.days_until_audit !== null && dashboardData.days_until_audit !== undefined) {
+                const d = dashboardData.days_until_audit;
+                if (daysWrap) daysWrap.style.display = '';
+                if (daysEl) {
+                    daysEl.textContent = d;
+                    daysEl.className = 'stat-value' + (d <= 30 ? ' danger' : d <= 90 ? ' warning' : '');
+                }
+            }
+
+            // Onboarding checklist
+            updateOnboardingChecklist(dashboardData);
+
             // Update trend chart if trend data exists
             if (dashboardData.trend_data && dashboardData.trend_data.length > 0) {
                 const labels = dashboardData.trend_data.map(t => t.label || t.week || '');
@@ -934,6 +951,145 @@ async function loadDocumentsList() {
         console.error('Failed to load documents:', error);
         renderDocumentsGrid([]);
     }
+}
+
+// ========== ONBOARDING CHECKLIST ==========
+
+function updateOnboardingChecklist(dashboardData) {
+    const checklist = document.getElementById('onboardingChecklist');
+    if (!checklist) return;
+
+    const hasDocs = (dashboardData.total_documents || 0) > 0;
+    const hasScore = (dashboardData.overall_compliance_score || 0) > 0;
+    const hasAuditDate = !!dashboardData.audit_date;
+
+    // Show checklist only when the account looks brand-new (no docs, no score)
+    if (hasDocs && hasScore) {
+        checklist.style.display = 'none';
+        return;
+    }
+    checklist.style.display = '';
+
+    // Mark steps complete based on what we know from the dashboard response
+    const steps = {
+        'step-org': hasAuditDate,
+        'step-doc': hasDocs,
+        'step-client': false, // can't know from dashboard — always unchecked
+        'step-staff': false,
+    };
+    Object.entries(steps).forEach(([id, done]) => {
+        const icon = document.getElementById('stepIcon-' + id.replace('step-', ''));
+        if (icon) icon.textContent = done ? '✅' : '⬜';
+        const row = document.getElementById(id);
+        if (row) row.style.opacity = done ? '0.6' : '1';
+    });
+}
+
+// ========== NOTIFICATIONS ==========
+
+let _notificationsLoaded = false;
+
+function toggleNotificationDropdown() {
+    const dropdown = document.getElementById('notificationDropdown');
+    if (!dropdown) return;
+    const isOpen = dropdown.style.display !== 'none';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen && !_notificationsLoaded) loadNotifications();
+    // Close on outside click
+    if (!isOpen) {
+        setTimeout(() => {
+            document.addEventListener('click', function closeDropdown(e) {
+                const wrap = document.getElementById('notificationBellWrap');
+                if (wrap && !wrap.contains(e.target)) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }, 0);
+    }
+}
+
+async function loadNotifications() {
+    const list = document.getElementById('notificationList');
+    const badge = document.getElementById('notificationBadge');
+    if (!list) return;
+
+    if (isDemoMode()) {
+        const items = [
+            { label: 'John Smith — NDIS plan expires in 18 days', urgent: true },
+            { label: 'Policy Manual — review due in 25 days', urgent: true },
+            { label: 'Jane Doe — NDIS plan expires in 45 days', urgent: false },
+        ];
+        _renderNotificationItems(list, badge, items);
+        _notificationsLoaded = true;
+        return;
+    }
+
+    if (!currentOrgId) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Sign in to view alerts.</p>';
+        return;
+    }
+
+    try {
+        const today = new Date();
+        const in90 = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
+
+        const [clientsResp, docsResp] = await Promise.all([
+            apiFetch('/clients/?per_page=100').catch(() => null),
+            apiFetch('/documents/?per_page=100').catch(() => null),
+        ]);
+
+        const items = [];
+
+        // Client plan expiry
+        const clients = (clientsResp && (clientsResp.clients || clientsResp)) || [];
+        (Array.isArray(clients) ? clients : []).forEach(c => {
+            if (!c.current_plan_end_date) return;
+            const expiry = new Date(c.current_plan_end_date);
+            const daysLeft = Math.round((expiry - today) / 86400000);
+            if (daysLeft <= 90 && daysLeft >= 0) {
+                const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Participant';
+                items.push({ label: `${name} — NDIS plan expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, urgent: daysLeft <= 30 });
+            }
+        });
+
+        // Document review due
+        const docs = (docsResp && (docsResp.documents || docsResp)) || [];
+        (Array.isArray(docs) ? docs : []).forEach(d => {
+            if (!d.review_due_date) return;
+            const due = new Date(d.review_due_date);
+            const daysLeft = Math.round((due - today) / 86400000);
+            if (daysLeft <= 90 && daysLeft >= 0) {
+                const name = d.original_filename || d.document_type || 'Document';
+                items.push({ label: `${name} — review due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, urgent: daysLeft <= 30 });
+            }
+        });
+
+        items.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+        _renderNotificationItems(list, badge, items);
+        _notificationsLoaded = true;
+    } catch (error) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Could not load alerts.</p>';
+    }
+}
+
+function _renderNotificationItems(list, badge, items) {
+    if (items.length === 0) {
+        list.innerHTML = '<p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">No upcoming alerts.</p>';
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+    const urgentCount = items.filter(i => i.urgent).length;
+    if (badge) {
+        badge.textContent = urgentCount || items.length;
+        badge.style.display = '';
+    }
+    list.innerHTML = items.map(item => `
+        <div style="padding:10px 16px;border-bottom:1px solid #f9fafb;display:flex;align-items:start;gap:10px;">
+            <span style="font-size:16px;flex-shrink:0;">${item.urgent ? '🔴' : '🟡'}</span>
+            <span style="font-size:13px;color:#374151;line-height:1.4;">${escapeHtml(item.label)}</span>
+        </div>
+    `).join('');
 }
 
 // ========== DEMO DATA ==========
@@ -1071,7 +1227,7 @@ async function viewDocument(docId) {
                 <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
                 <div style="max-height: 200px; overflow-y: auto;">
                     ${scores.map(s => {
-                        const pct = Math.round((s.score || 0) * 100);
+                        const pct = Math.round(s.score || 0); // scores stored as 0–100, no ×100 needed
                         const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
                             <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
@@ -1165,12 +1321,71 @@ async function deleteDocument(docId) {
     }
 }
 
-function viewGapRemediation(gapId) {
+async function viewGapRemediation(gapId) {
     if (isDemoMode() || !gapId) {
         showToast('Detailed remediation steps will be available after uploading and scanning your documents.', 'info');
         return;
     }
-    showToast('Remediation details coming soon.', 'info');
+    try {
+        const data = await apiFetch('/compliance/gaps?resolved=false&limit=100');
+        const allGaps = (data && data.gaps) ? data.gaps : [];
+        const gap = allGaps.find(g => g.id === gapId);
+        if (!gap) {
+            showToast('Gap details not found.', 'error');
+            return;
+        }
+
+        const riskColors = { critical: '#DC2626', high: '#D97706', medium: '#2563EB', low: '#6B7280' };
+        const riskColor = riskColors[gap.risk_level] || '#6B7280';
+        const isResolved = gap.resolved || false;
+
+        const existing = document.getElementById('gapRemediationOverlay');
+        if (existing) existing.remove();
+
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="gapRemediationOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+                <div style="background:white;border-radius:12px;max-width:520px;width:90%;max-height:85vh;overflow-y:auto;padding:28px;">
+                    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                        <div>
+                            <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${riskColor}20;color:${riskColor};text-transform:uppercase;letter-spacing:.5px;">${escapeHtml(gap.risk_level || 'unknown')} risk</span>
+                        </div>
+                        <button onclick="document.getElementById('gapRemediationOverlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+                    </div>
+                    <h3 style="margin:0 0 6px;font-size:17px;font-weight:600;color:#111827;">${escapeHtml(gap.standard_name || gap.standard_id || 'NDIS Standard')}</h3>
+                    <p style="font-size:12px;color:#6b7280;margin:0 0 16px;">Standard ${escapeHtml(gap.standard_id || '')}</p>
+                    <div style="margin-bottom:16px;">
+                        <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 6px;">Gap Identified</p>
+                        <p style="font-size:14px;color:#4b5563;margin:0;line-height:1.6;">${escapeHtml(gap.gap_description || 'No description available.')}</p>
+                    </div>
+                    ${gap.remediation_action ? `
+                    <div style="background:#F0FDF4;border-left:3px solid #10B981;padding:12px 14px;border-radius:0 6px 6px 0;margin-bottom:20px;">
+                        <p style="font-size:13px;font-weight:600;color:#065F46;margin:0 0 4px;">Recommended Action</p>
+                        <p style="font-size:14px;color:#047857;margin:0;line-height:1.6;">${escapeHtml(gap.remediation_action)}</p>
+                    </div>` : ''}
+                    <button onclick="markGapResolved('${gapId}', ${!isResolved})" style="width:100%;padding:10px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${isResolved ? '#F3F4F6' : '#1B365D'};color:${isResolved ? '#374151' : 'white'};">
+                        ${isResolved ? 'Re-open Gap' : 'Mark as Resolved'}
+                    </button>
+                </div>
+            </div>
+        `);
+    } catch (error) {
+        showToast('Failed to load remediation details.', 'error');
+    }
+}
+
+async function markGapResolved(gapId, resolved) {
+    try {
+        await apiFetch(`/compliance/gaps/${gapId}/resolve`, {
+            method: 'PATCH',
+            body: JSON.stringify({ resolved }),
+        });
+        const overlay = document.getElementById('gapRemediationOverlay');
+        if (overlay) overlay.remove();
+        showToast(resolved ? 'Gap marked as resolved.' : 'Gap re-opened.');
+        loadDashboardData();
+    } catch (error) {
+        showToast('Failed to update gap status.', 'error');
+    }
 }
 
 // ========== CLIENTS ==========
@@ -1232,9 +1447,15 @@ function renderClientsList(clients) {
     grid.innerHTML = clients.map(client => {
         const fullName = `${client.first_name || ''} ${client.last_name || ''}`.trim();
         const ndisNumber = client.ndis_participant_number || 'N/A';
-        const planDates = client.current_plan_start_date && client.current_plan_end_date
-            ? `${formatDate(client.current_plan_start_date)} – ${formatDate(client.current_plan_end_date)}`
-            : 'Not set';
+        // Plan dates with expiry colour-coding
+        let planDates = 'Not set';
+        let planDateStyle = '';
+        if (client.current_plan_start_date && client.current_plan_end_date) {
+            const daysLeft = Math.round((new Date(client.current_plan_end_date) - new Date()) / 86400000);
+            planDates = `${formatDate(client.current_plan_start_date)} – ${formatDate(client.current_plan_end_date)}`;
+            if (daysLeft <= 30) planDateStyle = 'color:#EF4444;font-weight:600;';
+            else if (daysLeft <= 90) planDateStyle = 'color:#F59E0B;font-weight:500;';
+        }
 
         // Determine status badge
         let statusClass = 'status-active';
@@ -1256,7 +1477,7 @@ function renderClientsList(clients) {
                 <div class="client-card-body">
                     <h3>${escapeHtml(fullName)}</h3>
                     <p class="client-ndis">NDIS #${escapeHtml(ndisNumber)}</p>
-                    <p class="client-dates">${escapeHtml(planDates)}</p>
+                    <p class="client-dates" style="${planDateStyle}">${escapeHtml(planDates)}</p>
                     ${client.requires_behaviour_support ? '<p class="client-behaviour">🎯 Behaviour Support</p>' : ''}
                 </div>
                 <div class="client-card-footer">
@@ -1450,6 +1671,7 @@ async function showClientDetail(clientId) {
     try {
         const client = await apiFetch(`/clients/${clientId}`);
         if (client) {
+            _currentClientData = client;
             renderClientDetailView(client);
         }
     } catch (error) {
@@ -1496,61 +1718,57 @@ function renderClientDetailView(client) {
     document.getElementById('clientDetailView').style.display = 'block';
 }
 
-function renderComplianceResults(client) {
+async function renderComplianceResults(client) {
     const resultsContainer = document.getElementById('complianceResults');
+    if (!resultsContainer) return;
 
-    // Demo compliance results
-    const results = [
-        {
-            category: 'Personal Planning & Budgeting',
-            status: 'compliant',
-            score: 95,
-            lastChecked: new Date(Date.now() - 3 * 86400000)
-        },
-        {
-            category: 'Plan Implementation',
-            status: 'compliant',
-            score: 88,
-            lastChecked: new Date(Date.now() - 5 * 86400000)
-        },
-        {
-            category: 'Incident Management',
-            status: 'at_risk',
-            score: 72,
-            lastChecked: new Date(Date.now() - 7 * 86400000)
-        },
-        {
-            category: 'Safeguarding',
-            status: 'compliant',
-            score: 92,
-            lastChecked: new Date(Date.now() - 2 * 86400000)
-        }
-    ];
+    resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Loading compliance checks…</p>';
 
-    if (!results || results.length === 0) {
-        resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet.</p>';
+    if (isDemoMode()) {
+        _renderComplianceChecksList(resultsContainer, [
+            { id: 'demo-1', check_type: 'comprehensive', overall_score: 88, status: 'completed', executed_at: new Date(Date.now() - 3 * 86400000).toISOString(), findings: { gaps: 2, total_standards: 17, met: 15 } },
+            { id: 'demo-2', check_type: 'comprehensive', overall_score: 74, status: 'completed', executed_at: new Date(Date.now() - 14 * 86400000).toISOString(), findings: { gaps: 5, total_standards: 17, met: 12 } },
+        ]);
         return;
     }
 
-    resultsContainer.innerHTML = results.map(result => {
-        const statusClass = result.status === 'compliant' ? 'status-compliant' : 'status-warning';
-        const statusIcon = result.status === 'compliant' ? '🟢' : '🟡';
-        const lastCheckedText = timeAgo(result.lastChecked);
+    try {
+        const data = await apiFetch(`/clients/${client.id}/compliance-checks?limit=5`);
+        _renderComplianceChecksList(resultsContainer, data.checks || []);
+    } catch (error) {
+        resultsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load compliance checks.</p>';
+    }
+}
+
+function _renderComplianceChecksList(container, checks) {
+    if (!checks || checks.length === 0) {
+        container.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet. Click "Run Compliance Check" to start.</p>';
+        return;
+    }
+
+    container.innerHTML = checks.map(check => {
+        const score = Math.round(check.overall_score || 0);
+        const color = score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444';
+        const statusLabel = score >= 80 ? 'Compliant' : score >= 50 ? 'At Risk' : 'Non-Compliant';
+        const statusIcon = score >= 80 ? '🟢' : score >= 50 ? '🟡' : '🔴';
+        const findings = check.findings || {};
+        const gaps = findings.gaps || 0;
+        const checkedAt = check.executed_at ? timeAgo(new Date(check.executed_at)) : 'Unknown';
 
         return `
             <div class="compliance-result-card">
                 <div class="compliance-result-header">
                     <div>
-                        <h4>${escapeHtml(result.category)}</h4>
-                        <p class="compliance-checked">Last checked ${lastCheckedText}</p>
+                        <h4>${escapeHtml(check.check_type === 'comprehensive' ? 'Full Compliance Check' : (check.check_type || 'Check'))}</h4>
+                        <p class="compliance-checked">Run ${checkedAt}${gaps > 0 ? ` · ${gaps} gap${gaps !== 1 ? 's' : ''} found` : ''}</p>
                     </div>
-                    <div class="status-badge ${statusClass}">${statusIcon} ${result.status === 'compliant' ? 'Compliant' : 'At Risk'}</div>
+                    <div class="status-badge ${score >= 80 ? 'status-compliant' : 'status-warning'}">${statusIcon} ${statusLabel}</div>
                 </div>
                 <div class="compliance-score">
                     <div class="score-bar">
-                        <div class="score-fill" style="width: ${result.score}%; background: ${result.status === 'compliant' ? '#10B981' : '#F59E0B'};"></div>
+                        <div class="score-fill" style="width: ${score}%; background: ${color};"></div>
                     </div>
-                    <span class="score-text">${result.score}%</span>
+                    <span class="score-text">${score}%</span>
                 </div>
             </div>
         `;
@@ -1674,6 +1892,73 @@ function closeClientDetail() {
     document.getElementById('clientsList').style.display = 'grid';
 }
 
+let _currentClientData = null; // cache for edit modal pre-fill
+
+function showEditClientModal() {
+    if (isDemoMode()) {
+        showToast('Client editing is not available in demo mode.', 'info');
+        return;
+    }
+    if (!currentClientId) return;
+
+    // Pre-fill from cached client data if we have it
+    const c = _currentClientData;
+    if (c) {
+        document.getElementById('editClientFirstName').value = c.first_name || '';
+        document.getElementById('editClientLastName').value = c.last_name || '';
+        document.getElementById('editClientDob').value = c.date_of_birth || '';
+        document.getElementById('editClientNdisNumber').value = c.ndis_participant_number || '';
+        document.getElementById('editClientEmail').value = c.email || '';
+        document.getElementById('editClientPhone').value = c.phone_number || '';
+        document.getElementById('editClientPlanStart').value = c.current_plan_start_date || '';
+        document.getElementById('editClientPlanEnd').value = c.current_plan_end_date || '';
+        document.getElementById('editClientBehaviour').checked = !!c.requires_behaviour_support;
+    }
+    document.getElementById('editClientError').style.display = 'none';
+    document.getElementById('editClientModal').style.display = 'flex';
+}
+
+function closeEditClientModal() {
+    document.getElementById('editClientModal').style.display = 'none';
+}
+
+async function handleEditClient(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('editClientError');
+    errorEl.style.display = 'none';
+
+    const payload = {
+        first_name: document.getElementById('editClientFirstName').value.trim(),
+        last_name: document.getElementById('editClientLastName').value.trim(),
+        ndis_participant_number: document.getElementById('editClientNdisNumber').value.trim() || null,
+        email: document.getElementById('editClientEmail').value.trim() || null,
+        phone_number: document.getElementById('editClientPhone').value.trim() || null,
+        date_of_birth: document.getElementById('editClientDob').value || null,
+        current_plan_start_date: document.getElementById('editClientPlanStart').value || null,
+        current_plan_end_date: document.getElementById('editClientPlanEnd').value || null,
+        requires_behaviour_support: document.getElementById('editClientBehaviour').checked,
+    };
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+        const updated = await apiFetch(`/clients/${currentClientId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        _currentClientData = updated;
+        closeEditClientModal();
+        showToast('Client updated.');
+        showClientDetail(currentClientId);
+    } catch (error) {
+        errorEl.textContent = error.message || 'Failed to save client.';
+        errorEl.style.display = 'block';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+    }
+}
+
 async function triggerClientComplianceCheck() {
     if (!currentClientId) return;
 
@@ -1685,7 +1970,8 @@ async function triggerClientComplianceCheck() {
     try {
         showLoading(true);
         await apiFetch(`/clients/${currentClientId}/compliance-check`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify({ check_type: 'comprehensive' }),
         });
         showLoading(false);
 
@@ -1752,16 +2038,42 @@ async function loadStaffList() {
     }
 
     try {
-        const data = await apiFetch('/staff/');
-        if (data && data.staff) {
-            renderStaffList(data.staff);
-        }
+        const [staffData, certData] = await Promise.all([
+            apiFetch('/staff/'),
+            apiFetch('/staff/certifications').catch(() => ({ certifications: [] })),
+        ]);
+        const staff = (staffData && staffData.staff) ? staffData.staff : [];
+        const certs = (certData && certData.certifications) ? certData.certifications : [];
+        // Index certs by profile_id → cert_type → cert record
+        const certMap = {};
+        certs.forEach(c => {
+            if (!certMap[c.profile_id]) certMap[c.profile_id] = {};
+            certMap[c.profile_id][c.cert_type] = c;
+        });
+        renderStaffList(staff, certMap);
     } catch (error) {
         console.error('Failed to load staff:', error);
     }
 }
 
-function renderStaffList(staffMembers) {
+function _certBadge(cert) {
+    if (!cert) return '<span class="badge badge-warning">— Not recorded</span>';
+    const today = new Date();
+    const expiry = cert.expiry_date ? new Date(cert.expiry_date) : null;
+    if (!expiry) {
+        // No expiry — once-off cert (ndis_orientation) or screening with no date
+        return cert.issued_date
+            ? `<span class="badge badge-success" title="Issued ${cert.issued_date}">✓ Completed</span>`
+            : '<span class="badge badge-warning">— Not recorded</span>';
+    }
+    const daysLeft = Math.round((expiry - today) / 86400000);
+    if (daysLeft < 0) return `<span class="badge badge-danger" title="Expired ${cert.expiry_date}">✗ Expired</span>`;
+    if (daysLeft <= 60) return `<span class="badge badge-warning" title="Expires ${cert.expiry_date}">⚠ Expires in ${daysLeft}d</span>`;
+    return `<span class="badge badge-success" title="Valid until ${cert.expiry_date}">✓ Current</span>`;
+}
+
+function renderStaffList(staffMembers, certMap) {
+    certMap = certMap || {};
     const tbody = document.querySelector('.staff-table tbody');
     if (!tbody) return;
 
@@ -1783,21 +2095,67 @@ function renderStaffList(staffMembers) {
         const role = escapeHtml(member.role || 'member');
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         const isSelf = member.id === selfId;
+        const memberCerts = certMap[member.id] || {};
+
+        const addCertBtn = `<button class="btn btn-small" style="margin-right:6px;" onclick="openCertModal('${member.id}','${name}')">Certs</button>`;
         const actions = isSelf
-            ? `<span style="color:#9ca3af; font-size:13px;">(you)</span>`
-            : `<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
+            ? `${addCertBtn}<span style="color:#9ca3af; font-size:13px;">(you)</span>`
+            : `${addCertBtn}<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
                <button class="btn btn-small btn-danger" onclick="confirmRemoveStaff('${member.id}','${name}')">Remove</button>`;
+
         return `
             <tr>
                 <td><strong>${name}</strong></td>
                 <td>${roleLabel}</td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td>${_certBadge(memberCerts.worker_screening)}</td>
+                <td>${_certBadge(memberCerts.first_aid)}</td>
+                <td>${_certBadge(memberCerts.ndis_orientation)}</td>
                 <td>${actions}</td>
             </tr>
         `;
     }).join('');
+}
+
+function openCertModal(userId, staffName) {
+    document.getElementById('certModalUserId').value = userId;
+    document.getElementById('certModalStaffName').textContent = staffName;
+    document.getElementById('certModalError').style.display = 'none';
+    document.getElementById('certModalForm').reset();
+    document.getElementById('certModal').style.display = 'flex';
+}
+
+function closeCertModal() {
+    document.getElementById('certModal').style.display = 'none';
+}
+
+async function handleCertSave(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('certModalError');
+    errorEl.style.display = 'none';
+
+    const userId = document.getElementById('certModalUserId').value;
+    const certType = document.getElementById('certModalType').value;
+    const issuedDate = document.getElementById('certModalIssued').value || null;
+    const expiryDate = document.getElementById('certModalExpiry').value || null;
+    const notes = document.getElementById('certModalNotes').value.trim() || null;
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+        await apiFetch(`/staff/${userId}/certifications/${certType}`, {
+            method: 'PUT',
+            body: JSON.stringify({ issued_date: issuedDate, expiry_date: expiryDate, notes }),
+        });
+        closeCertModal();
+        showToast('Certification saved.');
+        loadStaffList();
+    } catch (error) {
+        errorEl.textContent = error.message || 'Failed to save certification.';
+        errorEl.style.display = 'block';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Certification'; }
+    }
 }
 
 function openEditStaffModal(userId, currentRole, name) {
@@ -1859,13 +2217,471 @@ async function confirmRemoveStaff(userId, name) {
     }
 }
 
-function handleSettingsSave(e) {
+async function loadSettingsTab() {
+    if (isDemoMode() || !currentOrgId) return;
+    try {
+        const org = await apiFetch(`/organizations/${currentOrgId}`);
+        const nameEl = document.getElementById('settingsOrgName');
+        const abnEl = document.getElementById('settingsABN');
+        const ndisEl = document.getElementById('settingsNDISReg');
+        const addressEl = document.getElementById('settingsAddress');
+        const auditDateEl = document.getElementById('settingsAuditDate');
+        const auditTypeEl = document.getElementById('settingsAuditType');
+        if (nameEl) nameEl.value = org.name || '';
+        if (abnEl) abnEl.value = org.abn || '';
+        if (ndisEl) ndisEl.value = org.ndis_registration_number || '';
+        if (addressEl) addressEl.value = org.address || '';
+        if (auditDateEl) auditDateEl.value = org.audit_date || '';
+        if (auditTypeEl) auditTypeEl.value = org.audit_type || '';
+    } catch (error) {
+        console.warn('Could not load org settings:', error);
+    }
+}
+
+async function handleSettingsSave(e) {
     e.preventDefault();
-    showToast('Settings updated successfully!');
+    if (isDemoMode() || !currentOrgId) {
+        showToast('Settings saved (demo mode — no changes persisted).');
+        return;
+    }
+    const payload = {};
+    const name = document.getElementById('settingsOrgName')?.value.trim();
+    const abn = document.getElementById('settingsABN')?.value.trim();
+    const ndisReg = document.getElementById('settingsNDISReg')?.value.trim();
+    const address = document.getElementById('settingsAddress')?.value.trim();
+    const auditDate = document.getElementById('settingsAuditDate')?.value;
+    const auditType = document.getElementById('settingsAuditType')?.value.trim();
+    if (name) payload.name = name;
+    if (abn) payload.abn = abn;
+    if (ndisReg) payload.ndis_registration_number = ndisReg;
+    if (address) payload.address = address;
+    if (auditDate) payload.audit_date = auditDate;
+    if (auditType) payload.audit_type = auditType;
+
+    if (Object.keys(payload).length === 0) {
+        showToast('No changes to save.');
+        return;
+    }
+    try {
+        const updated = await apiFetch(`/organizations/${currentOrgId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        showToast('Organisation settings saved.');
+        const nameEl = document.getElementById('orgName');
+        if (nameEl && updated.name) nameEl.textContent = updated.name;
+    } catch (error) {
+        showToast('Failed to save settings: ' + error.message, 'error');
+    }
+}
+
+// ========== INTEGRATIONS (external storage) ==========
+
+const INTEGRATION_PROVIDERS = [
+    {
+        key: 'microsoft',
+        label: 'SharePoint / OneDrive',
+        blurb: 'Pull in everything your team already stores in Microsoft 365.',
+        icon: '🔷',
+        enabled: true,
+    },
+    {
+        key: 'google',
+        label: 'Google Drive',
+        blurb: 'Sync shared drives and folders from Workspace.',
+        icon: '📂',
+        enabled: false,
+    },
+    {
+        key: 'dropbox',
+        label: 'Dropbox',
+        blurb: 'Import policies and procedures straight from Dropbox.',
+        icon: '📦',
+        enabled: false,
+    },
+    {
+        key: 'box',
+        label: 'Box',
+        blurb: 'Enterprise-grade storage for regulated providers.',
+        icon: '🗄️',
+        enabled: false,
+    },
+];
+
+async function loadIntegrations() {
+    const container = document.getElementById('integrationsList');
+    if (!container) return;
+
+    let connected = [];
+    try {
+        connected = await apiFetch('/integrations/');
+        if (!Array.isArray(connected)) connected = [];
+    } catch (error) {
+        console.warn('Could not load integrations:', error);
+        connected = [];
+    }
+
+    const byProvider = Object.fromEntries(connected.map(c => [c.provider, c]));
+    container.innerHTML = INTEGRATION_PROVIDERS.map(p => {
+        const existing = byProvider[p.key];
+        return renderIntegrationCard(p, existing);
+    }).join('');
+}
+
+function renderIntegrationCard(provider, existing) {
+    const isConnected = !!existing;
+    const isComingSoon = !provider.enabled;
+
+    const statusLine = (() => {
+        if (isComingSoon) return '<span class="badge badge-muted">Coming soon</span>';
+        if (!isConnected) return '<span style="color:#6b7280; font-size:13px;">Not connected</span>';
+        const status = existing.sync_status || 'idle';
+        const when = existing.last_sync_at ? timeAgo(new Date(existing.last_sync_at)) : 'never';
+        const folderCount = (existing.root_folders || []).length;
+        const statusBadge = status === 'syncing'
+            ? '<span style="color:#2563eb; font-size:12px; font-weight:600;">Syncing…</span>'
+            : status === 'error'
+                ? '<span style="color:#ef4444; font-size:12px; font-weight:600;">Error</span>'
+                : '<span style="color:#059669; font-size:12px; font-weight:600;">Connected</span>';
+        return `
+            ${statusBadge}
+            <div style="font-size:12px; color:#6b7280; margin-top:4px;">
+                ${escapeHtml(existing.account_email || '')}<br>
+                Last sync: ${when} · ${folderCount} folder${folderCount === 1 ? '' : 's'}
+            </div>
+            ${existing.last_error ? `<div style="font-size:12px; color:#ef4444; margin-top:6px;">${escapeHtml(existing.last_error)}</div>` : ''}
+        `;
+    })();
+
+    const actions = (() => {
+        if (isComingSoon) {
+            return '<button class="btn btn-secondary" style="width:100%;" disabled>Coming soon</button>';
+        }
+        if (!isConnected) {
+            return `<button class="btn btn-primary" style="width:100%;" onclick="connectIntegration('${provider.key}')">Connect</button>`;
+        }
+        return `
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="openFolderPickerFor('${existing.id}')">Folders</button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="resyncIntegration('${existing.id}')">Resync</button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="disconnectIntegration('${existing.id}')">Disconnect</button>
+            </div>
+        `;
+    })();
+
+    return `
+        <div style="border:1px solid #e5e7eb; border-radius:10px; padding:16px; background:white; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="font-size:22px;">${provider.icon}</div>
+                <div style="flex:1;">
+                    <div style="font-weight:600;">${provider.label}</div>
+                    <div style="font-size:12px; color:#6b7280;">${provider.blurb}</div>
+                </div>
+            </div>
+            <div>${statusLine}</div>
+            <div>${actions}</div>
+        </div>
+    `;
+}
+
+async function connectIntegration(provider) {
+    try {
+        const result = await apiFetch(`/integrations/${provider}/authorize`);
+        if (result && result.url) {
+            // Open in a new tab so the user keeps Verida open while they consent
+            window.open(result.url, '_blank', 'noopener');
+            showToast('Finish connecting in the new tab. We\'ll refresh automatically.', 'info');
+        } else {
+            showToast('Could not start OAuth flow.', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to start OAuth: ' + error.message, 'error');
+    }
+}
+
+async function resyncIntegration(integrationId) {
+    try {
+        await apiFetch(`/integrations/${integrationId}/sync`, { method: 'POST' });
+        showToast('Sync started — new documents will appear shortly.', 'info');
+        setTimeout(loadIntegrations, 1500);
+    } catch (error) {
+        showToast('Failed to start sync: ' + error.message, 'error');
+    }
+}
+
+async function disconnectIntegration(integrationId) {
+    if (!confirm('Disconnect this integration? Files already synced will stay in Verida.')) return;
+    try {
+        await apiFetch(`/integrations/${integrationId}`, { method: 'DELETE' });
+        showToast('Integration disconnected.');
+        loadIntegrations();
+    } catch (error) {
+        showToast('Failed to disconnect: ' + error.message, 'error');
+    }
+}
+
+// ---- Folder picker ----
+let _folderPickerSelected = new Map(); // id → {id, name, path}
+let _folderPickerStack = [];            // breadcrumb: [{id|null, name}]
+
+async function openFolderPickerFor(integrationId) {
+    _folderPickerSelected = new Map();
+    _folderPickerStack = [{ id: null, name: 'Root' }];
+    document.getElementById('folderPickerIntegrationId').value = integrationId;
+    document.getElementById('folderPickerModal').style.display = 'flex';
+    document.getElementById('folderPickerError').style.display = 'none';
+    await loadFolderPickerLevel(null);
+}
+
+async function loadFolderPickerLevel(parentId) {
+    const list = document.getElementById('folderPickerList');
+    list.innerHTML = '<div style="padding:24px; text-align:center; color:#9ca3af;">Loading folders…</div>';
+
+    const integrationId = document.getElementById('folderPickerIntegrationId').value;
+    const qs = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+    try {
+        const folders = await apiFetch(`/integrations/${integrationId}/folders${qs}`);
+        renderFolderPickerBreadcrumb();
+        if (!folders || folders.length === 0) {
+            list.innerHTML = '<div style="padding:24px; text-align:center; color:#9ca3af;">No folders at this level.</div>';
+            return;
+        }
+        list.innerHTML = folders.map(f => {
+            const selected = _folderPickerSelected.has(f.id);
+            return `
+                <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #f3f4f6;">
+                    <input type="checkbox" ${selected ? 'checked' : ''} onchange="toggleFolderSelect('${f.id}', '${escapeAttr(f.name)}', '${escapeAttr(f.path)}', this.checked)">
+                    <div style="flex:1; cursor:${f.has_children ? 'pointer' : 'default'};" onclick="${f.has_children ? `drillIntoFolder('${f.id}', '${escapeAttr(f.name)}')` : ''}">
+                        <div style="font-weight:500;">📁 ${escapeHtml(f.name)}</div>
+                        <div style="font-size:11px; color:#9ca3af;">${escapeHtml(f.path || '')}</div>
+                    </div>
+                    ${f.has_children ? `<button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="drillIntoFolder('${f.id}', '${escapeAttr(f.name)}')">Open ›</button>` : ''}
+                </div>
+            `;
+        }).join('');
+        updateFolderPickerCount();
+    } catch (error) {
+        list.innerHTML = '';
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Could not load folders: ' + error.message;
+        err.style.display = 'block';
+    }
+}
+
+function escapeAttr(str) {
+    return String(str || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function toggleFolderSelect(id, name, path, checked) {
+    if (checked) {
+        _folderPickerSelected.set(id, { id, name, path });
+    } else {
+        _folderPickerSelected.delete(id);
+    }
+    updateFolderPickerCount();
+}
+
+function updateFolderPickerCount() {
+    const el = document.getElementById('folderPickerCount');
+    const n = _folderPickerSelected.size;
+    if (el) el.textContent = `${n} folder${n === 1 ? '' : 's'} selected`;
+}
+
+function drillIntoFolder(id, name) {
+    _folderPickerStack.push({ id, name });
+    loadFolderPickerLevel(id);
+}
+
+function renderFolderPickerBreadcrumb() {
+    const el = document.getElementById('folderPickerBreadcrumb');
+    if (!el) return;
+    el.innerHTML = _folderPickerStack.map((crumb, idx) => {
+        const isLast = idx === _folderPickerStack.length - 1;
+        if (isLast) return `<span style="color:#111827; font-weight:600;">${escapeHtml(crumb.name)}</span>`;
+        return `<a href="#" style="color:#2563eb; text-decoration:none;" onclick="popFolderStackTo(${idx}); return false;">${escapeHtml(crumb.name)}</a> › `;
+    }).join('');
+}
+
+function popFolderStackTo(index) {
+    _folderPickerStack = _folderPickerStack.slice(0, index + 1);
+    const crumb = _folderPickerStack[index];
+    loadFolderPickerLevel(crumb.id);
+}
+
+function closeFolderPicker() {
+    document.getElementById('folderPickerModal').style.display = 'none';
+}
+
+async function saveFolderSelection() {
+    const integrationId = document.getElementById('folderPickerIntegrationId').value;
+    const folders = Array.from(_folderPickerSelected.values());
+    if (folders.length === 0) {
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Pick at least one folder to sync.';
+        err.style.display = 'block';
+        return;
+    }
+    try {
+        await apiFetch(`/integrations/${integrationId}/folders/select`, {
+            method: 'POST',
+            body: JSON.stringify({ folders }),
+        });
+        closeFolderPicker();
+        showToast(`Syncing ${folders.length} folder${folders.length === 1 ? '' : 's'} in the background.`, 'info');
+        setTimeout(loadIntegrations, 1500);
+    } catch (error) {
+        const err = document.getElementById('folderPickerError');
+        err.textContent = 'Failed to save: ' + error.message;
+        err.style.display = 'block';
+    }
+}
+
+// When we come back from an OAuth redirect with ?integration=connected, pop the
+// folder picker automatically so the first-run experience is seamless.
+function handleIntegrationReturnFromOAuth() {
+    const hash = window.location.hash || '';
+    const queryIdx = hash.indexOf('?');
+    if (queryIdx === -1) return;
+    const params = new URLSearchParams(hash.slice(queryIdx + 1));
+    const status = params.get('integration');
+    const integrationId = params.get('id');
+    if (status === 'connected' && integrationId) {
+        // Jump to settings tab + open folder picker
+        try { switchTab('settings'); } catch (e) {}
+        setTimeout(() => {
+            loadIntegrations().then(() => openFolderPickerFor(integrationId));
+        }, 200);
+        // Clean the URL
+        history.replaceState({}, '', window.location.pathname + '#settings');
+    } else if (status === 'error') {
+        showToast('Could not connect storage: ' + (params.get('message') || 'unknown error'), 'error');
+    }
+}
+
+async function loadReportsTab() {
+    const container = document.getElementById('reportsContent');
+    if (!container) return;
+
+    if (isDemoMode()) {
+        _renderReportsSummary(container, {
+            organization_name: 'Sunshine Support Services',
+            overall_compliance_score: 88,
+            total_documents: 12,
+            critical_gaps: 1,
+            high_gaps: 2,
+            audit_date: null,
+            days_until_audit: null,
+            compliant_standards: 14,
+            needs_attention_standards: 2,
+            non_compliant_standards: 1,
+            not_assessed_standards: 0,
+        }, [
+            { standard_number: '1.1', title: 'Person-centred approaches', score: 92, status: 'compliant' },
+            { standard_number: '1.2', title: 'Individual values and beliefs', score: 87, status: 'compliant' },
+            { standard_number: '1.3', title: 'Responsive support provision', score: 61, status: 'needs_attention' },
+            { standard_number: '2.1', title: 'Governance and operational management', score: 78, status: 'needs_attention' },
+            { standard_number: '3.1', title: 'Feedback and complaints management', score: 55, status: 'non_compliant' },
+        ]);
+        return;
+    }
+
+    container.innerHTML = '<p style="color:#6b7280;text-align:center;padding:40px;">Loading report data…</p>';
+
+    try {
+        const [dashboard, scoresResp] = await Promise.all([
+            apiFetch('/dashboard/'),
+            apiFetch('/compliance/scores'),
+        ]);
+        const standards = (scoresResp && scoresResp.scores) ? scoresResp.scores : [];
+        _renderReportsSummary(container, dashboard, standards);
+    } catch (error) {
+        container.innerHTML = `<p style="color:#ef4444;text-align:center;padding:40px;">Failed to load report data: ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function _renderReportsSummary(container, dash, standards) {
+    const score = Math.round(dash.overall_compliance_score || 0);
+    const scoreColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+    const totalGaps = (dash.critical_gaps || 0) + (dash.high_gaps || 0);
+    const generatedDate = new Date().toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const standardsRows = standards.map(s => {
+        const pct = Math.round(s.score || 0);
+        const c = pct >= 80 ? '#10B981' : pct >= 60 ? '#F59E0B' : '#EF4444';
+        const label = s.status === 'compliant' ? 'Compliant' : s.status === 'needs_attention' ? 'Needs Attention' : 'Non-Compliant';
+        return `<tr>
+            <td style="padding:8px 12px;font-size:13px;color:#374151;">${escapeHtml(s.standard_number || '')}</td>
+            <td style="padding:8px 12px;font-size:13px;color:#374151;">${escapeHtml(s.title || s.standard_name || '')}</td>
+            <td style="padding:8px 12px;font-size:13px;font-weight:600;color:${c};">${pct}%</td>
+            <td style="padding:8px 12px;font-size:13px;color:${c};">${label}</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div id="printableReport" style="max-width:860px;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:24px;">
+                <div>
+                    <h2 style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1B365D;">NDIS Compliance Report</h2>
+                    <p style="margin:0;color:#6b7280;font-size:13px;">${escapeHtml(dash.organization_name || '')} · Generated ${generatedDate}</p>
+                </div>
+                <button onclick="printReport()" class="btn btn-secondary" style="font-size:13px;">Print / Save PDF</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${scoreColor};">${score}%</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Overall Score</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#1B365D;">${dash.total_documents || 0}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Documents</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${totalGaps > 0 ? '#EF4444' : '#10B981'};">${totalGaps}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Critical/High Gaps</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#1B365D;">${dash.compliant_standards || 0}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Standards Met</div>
+                </div>
+                ${dash.days_until_audit !== null && dash.days_until_audit !== undefined ? `
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${dash.days_until_audit <= 30 ? '#EF4444' : dash.days_until_audit <= 90 ? '#F59E0B' : '#1B365D'};">${dash.days_until_audit}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Days to Audit</div>
+                </div>` : ''}
+            </div>
+
+            ${standards.length > 0 ? `
+            <h3 style="font-size:15px;font-weight:600;color:#1B365D;margin:0 0 12px;">Standards Breakdown</h3>
+            <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#F9FAFB;border-bottom:1px solid #e5e7eb;">
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">No.</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Standard</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Score</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${standardsRows}</tbody>
+                </table>
+            </div>` : '<p style="color:#6b7280;font-size:14px;">No standards scored yet. Upload and scan documents to populate this report.</p>'}
+        </div>
+    `;
 }
 
 function generateReport() {
-    showToast('Report generation started. Check your email in a few moments.', 'info');
+    loadReportsTab();
+}
+
+function printReport() {
+    const el = document.getElementById('printableReport');
+    if (!el) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>NDIS Compliance Report</title>
+        <style>body{font-family:Inter,sans-serif;padding:32px;color:#111;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:8px 12px;font-size:13px;text-align:left;}</style>
+        </head><body>${el.outerHTML}<script>window.print();window.close();<\/script></body></html>`);
+    w.document.close();
 }
 
 // ========== UTILITIES ==========

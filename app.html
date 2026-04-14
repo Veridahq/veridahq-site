@@ -180,7 +180,16 @@
             <nav class="navbar">
                 <div class="navbar-org" id="orgName">Sunshine Support Services</div>
                 <div class="navbar-right">
-                    <div class="notification-icon" title="Notifications">🔔</div>
+                    <div style="position:relative;" id="notificationBellWrap">
+                        <div class="notification-icon" title="Notifications" onclick="toggleNotificationDropdown()" style="cursor:pointer;">🔔</div>
+                        <span id="notificationBadge" style="display:none;position:absolute;top:-2px;right:-2px;background:#EF4444;color:white;border-radius:999px;font-size:10px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;line-height:16px;"></span>
+                        <div id="notificationDropdown" style="display:none;position:absolute;right:0;top:44px;width:320px;background:white;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:500;overflow:hidden;">
+                            <div style="padding:12px 16px;font-size:13px;font-weight:600;color:#1B365D;border-bottom:1px solid #f3f4f6;">Upcoming alerts</div>
+                            <div id="notificationList" style="max-height:320px;overflow-y:auto;padding:8px 0;">
+                                <p style="padding:16px;text-align:center;color:#9ca3af;font-size:13px;">Loading…</p>
+                            </div>
+                        </div>
+                    </div>
                     <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #1b365d, #2a9d8f); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer;" title="Profile">DU</div>
                 </div>
             </nav>
@@ -194,6 +203,30 @@
                         <div class="header-section">
                             <h1>Dashboard</h1>
                             <p class="subtitle">Your compliance status at a glance</p>
+                        </div>
+
+                        <!-- First-run onboarding checklist (hidden once org has documents) -->
+                        <div id="onboardingChecklist" style="display:none;background:linear-gradient(135deg,#EFF6FF,#F0FDF4);border:1px solid #BFDBFE;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+                            <h3 style="margin:0 0 4px;font-size:16px;font-weight:600;color:#1E40AF;">Get started with Verida</h3>
+                            <p style="margin:0 0 16px;font-size:13px;color:#3B82F6;">Complete these steps to set up your compliance monitoring.</p>
+                            <div style="display:flex;flex-direction:column;gap:10px;" id="onboardingSteps">
+                                <div class="onboarding-step" id="step-org" style="display:flex;align-items:center;gap:10px;font-size:14px;">
+                                    <span id="stepIcon-org" style="font-size:18px;">⬜</span>
+                                    <span>Set your organisation details and audit date in <a href="#" onclick="switchTab('settings');return false;" style="color:#2563EB;font-weight:500;">Settings</a></span>
+                                </div>
+                                <div class="onboarding-step" id="step-doc" style="display:flex;align-items:center;gap:10px;font-size:14px;">
+                                    <span id="stepIcon-doc" style="font-size:18px;">⬜</span>
+                                    <span>Upload your first compliance document on the <a href="#" onclick="switchTab('documents');return false;" style="color:#2563EB;font-weight:500;">Documents</a> tab</span>
+                                </div>
+                                <div class="onboarding-step" id="step-client" style="display:flex;align-items:center;gap:10px;font-size:14px;">
+                                    <span id="stepIcon-client" style="font-size:18px;">⬜</span>
+                                    <span>Add your first participant in the <a href="#" onclick="switchTab('clients');return false;" style="color:#2563EB;font-weight:500;">Clients</a> tab</span>
+                                </div>
+                                <div class="onboarding-step" id="step-staff" style="display:flex;align-items:center;gap:10px;font-size:14px;">
+                                    <span id="stepIcon-staff" style="font-size:18px;">⬜</span>
+                                    <span>Invite your team in the <a href="#" onclick="switchTab('staff');return false;" style="color:#2563EB;font-weight:500;">Staff</a> tab</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Score Overview -->
@@ -219,6 +252,10 @@
                                     <div class="stat">
                                         <div class="stat-label">Documents</div>
                                         <div class="stat-value" id="statDocs">8</div>
+                                    </div>
+                                    <div class="stat" id="statAuditWrap" style="display:none;">
+                                        <div class="stat-label">Days to Audit</div>
+                                        <div class="stat-value" id="statAudit">-</div>
                                     </div>
                                 </div>
                             </div>
@@ -289,7 +326,10 @@
                                     <h2 id="clientDetailName">Client Name</h2>
                                     <p class="subtitle" id="clientDetailNdis">NDIS Participant #</p>
                                 </div>
-                                <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <button class="btn btn-secondary" onclick="showEditClientModal()" style="font-size:13px;">Edit</button>
+                                    <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                </div>
                             </div>
 
                             <div class="client-detail-grid">
@@ -366,9 +406,9 @@
                                     <tr>
                                         <th>Name</th>
                                         <th>Role</th>
-                                        <th>Disability Awareness</th>
+                                        <th>Worker Screening</th>
                                         <th>First Aid</th>
-                                        <th>NDIS Standards</th>
+                                        <th>NDIS Orientation</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -422,62 +462,8 @@
                 <!-- Reports Tab -->
                 <div id="reportsTab" class="tab-pane">
                     <div class="container">
-                        <div class="header-section">
-                            <div>
-                                <h1>Reports</h1>
-                                <p class="subtitle">Generate and view compliance reports</p>
-                            </div>
-                            <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
-                        </div>
-
-                        <div class="reports-grid">
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Monthly Compliance Summary</h3>
-                                    <span class="report-date">Generated April 1, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Overall score: <strong>94%</strong></p>
-                                    <p>Standards met: <strong>18 of 20</strong></p>
-                                    <p>Critical gaps: <strong>2</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
-                            </div>
-
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Audit Readiness Assessment</h3>
-                                    <span class="report-date">Generated March 28, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Audit Readiness Score: <strong>92%</strong></p>
-                                    <p>Risk Level: <strong>Low</strong></p>
-                                    <p>Recommended Actions: <strong>3</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
-                            </div>
-
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Gap Analysis Report</h3>
-                                    <span class="report-date">Generated March 20, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Total gaps identified: <strong>2</strong></p>
-                                    <p>Critical: <strong>1</strong> | High: <strong>1</strong></p>
-                                    <p>Average remediation time: <strong>5 days</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
-                            </div>
+                        <div id="reportsContent">
+                            <p style="color:#6b7280;text-align:center;padding:40px;">Loading report…</p>
                         </div>
                     </div>
                 </div>
@@ -496,16 +482,34 @@
                                 <form onsubmit="handleSettingsSave(event)">
                                     <div class="form-group">
                                         <label class="form-label">Organisation Name</label>
-                                        <input type="text" class="form-input" value="Sunshine Support Services" disabled>
+                                        <input type="text" id="settingsOrgName" class="form-input" placeholder="e.g. Sunshine Support Services">
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Current Plan</label>
-                                        <input type="text" class="form-input" value="Growth - $149/month" disabled>
+                                        <label class="form-label">ABN</label>
+                                        <input type="text" id="settingsABN" class="form-input" placeholder="e.g. 12 345 678 901">
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Number of Participants</label>
-                                        <input type="text" class="form-input" value="45" disabled>
+                                        <label class="form-label">NDIS Registration Number</label>
+                                        <input type="text" id="settingsNDISReg" class="form-input" placeholder="e.g. 4050012345">
                                     </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Address</label>
+                                        <input type="text" id="settingsAddress" class="form-input" placeholder="e.g. 1 Main St, Melbourne VIC 3000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Next Audit Date</label>
+                                        <input type="date" id="settingsAuditDate" class="form-input">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Audit Type</label>
+                                        <select id="settingsAuditType" class="form-input">
+                                            <option value="">Select…</option>
+                                            <option value="certification">Certification Audit</option>
+                                            <option value="surveillance">Surveillance Audit</option>
+                                            <option value="renewal">Renewal Audit</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
                                 </form>
                             </div>
 
@@ -543,6 +547,18 @@
                                     <p style="margin: 0 0 12px 0;">Your data is encrypted and stored securely in Australian data centres.</p>
                                     <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="showToast('Data export coming soon.', 'info')">Download Your Data</button>
                                     <button class="btn btn-secondary" style="width: 100%;" onclick="showToast('Please contact support to delete your account.', 'info')">Delete Account</button>
+                                </div>
+                            </div>
+
+                            <div class="settings-card" style="grid-column: 1 / -1;">
+                                <h3>Connected Storage</h3>
+                                <p style="color: #6b7280; margin: 4px 0 16px 0; font-size: 14px;">
+                                    Pull documents in automatically from where your team already keeps them.
+                                    New files sync in the background and are scored against the NDIS standards
+                                    the same way manual uploads are.
+                                </p>
+                                <div id="integrationsList" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
+                                    <!-- Rendered by renderIntegrations() -->
                                 </div>
                             </div>
                         </div>
@@ -629,6 +645,73 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Client Modal -->
+    <div id="editClientModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeEditClientModal()">×</button>
+            <h2>Edit Client</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Update the client's information below</p>
+            <p id="editClientError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:12px;"></p>
+
+            <form id="editClientForm" onsubmit="handleEditClient(event)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="editClientFirstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="editClientLastName" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Date of Birth</label>
+                    <input type="date" class="form-input" id="editClientDob">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">NDIS Participant Number</label>
+                    <input type="text" class="form-input" id="editClientNdisNumber" placeholder="e.g., 123456789">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="editClientEmail">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="editClientPhone">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Plan Start Date</label>
+                        <input type="date" class="form-input" id="editClientPlanStart">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Plan End Date</label>
+                        <input type="date" class="form-input" id="editClientPlanEnd">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="editClientBehaviour">
+                        <span>Requires Behaviour Support</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditClientModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>
@@ -740,6 +823,66 @@
                     <button type="button" class="btn btn-secondary" onclick="closeEditStaffModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Staff Certification Modal -->
+    <div id="certModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeCertModal()">×</button>
+            <h2>Update Certification</h2>
+            <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">Recording cert for <strong id="certModalStaffName"></strong></p>
+            <p id="certModalError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:12px;"></p>
+            <input type="hidden" id="certModalUserId">
+            <form id="certModalForm" onsubmit="handleCertSave(event)">
+                <div class="form-group">
+                    <label class="form-label">Certification Type</label>
+                    <select class="form-input" id="certModalType">
+                        <option value="worker_screening">Worker Screening Check</option>
+                        <option value="first_aid">First Aid / CPR</option>
+                        <option value="ndis_orientation">NDIS Orientation Module</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date Issued</label>
+                    <input type="date" class="form-input" id="certModalIssued">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expiry Date <span style="color:#9ca3af;font-size:12px;">(leave blank if no expiry)</span></label>
+                    <input type="date" class="form-input" id="certModalExpiry">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <input type="text" class="form-input" id="certModalNotes" placeholder="e.g. Certificate number, provider…">
+                </div>
+                <div style="display:flex;gap:12px;margin-top:24px;">
+                    <button type="submit" class="btn btn-primary" style="flex:1;">Save Certification</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCertModal()" style="flex:1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Integration Folder Picker Modal -->
+    <div id="folderPickerModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeFolderPicker()">×</button>
+            <h2>Choose folders to sync</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 16px;">
+                Select the folders you'd like Verida to pull documents from. Subfolders are
+                included automatically. You can change this later from Settings → Connected Storage.
+            </p>
+            <input type="hidden" id="folderPickerIntegrationId">
+            <div id="folderPickerBreadcrumb" style="font-size: 13px; color: #6b7280; margin-bottom: 8px;"></div>
+            <div id="folderPickerList" style="border: 1px solid #e5e7eb; border-radius: 8px; max-height: 360px; overflow-y: auto; padding: 4px;">
+                <div style="padding: 24px; text-align: center; color: #9ca3af;">Loading folders…</div>
+            </div>
+            <div id="folderPickerError" style="display:none; color:#ef4444; font-size:14px; margin-top:10px;"></div>
+            <div style="display: flex; gap: 12px; margin-top: 20px; align-items: center;">
+                <span id="folderPickerCount" style="color: #6b7280; font-size: 13px; flex: 1;">0 folders selected</span>
+                <button type="button" class="btn btn-secondary" onclick="closeFolderPicker()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveFolderSelection()">Start sync</button>
+            </div>
         </div>
     </div>
 
