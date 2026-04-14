@@ -424,6 +424,8 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
+    if (tabName === 'settings') loadSettingsTab();
+    if (tabName === 'reports') loadReportsTab();
 }
 
 // ========== CHARTS ==========
@@ -1071,7 +1073,7 @@ async function viewDocument(docId) {
                 <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
                 <div style="max-height: 200px; overflow-y: auto;">
                     ${scores.map(s => {
-                        const pct = Math.round((s.score || 0) * 100);
+                        const pct = Math.round(s.score || 0); // scores stored as 0–100, no ×100 needed
                         const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
                             <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
@@ -1165,12 +1167,71 @@ async function deleteDocument(docId) {
     }
 }
 
-function viewGapRemediation(gapId) {
+async function viewGapRemediation(gapId) {
     if (isDemoMode() || !gapId) {
         showToast('Detailed remediation steps will be available after uploading and scanning your documents.', 'info');
         return;
     }
-    showToast('Remediation details coming soon.', 'info');
+    try {
+        const data = await apiFetch('/compliance/gaps?resolved=false&limit=100');
+        const allGaps = (data && data.gaps) ? data.gaps : [];
+        const gap = allGaps.find(g => g.id === gapId);
+        if (!gap) {
+            showToast('Gap details not found.', 'error');
+            return;
+        }
+
+        const riskColors = { critical: '#DC2626', high: '#D97706', medium: '#2563EB', low: '#6B7280' };
+        const riskColor = riskColors[gap.risk_level] || '#6B7280';
+        const isResolved = gap.resolved || false;
+
+        const existing = document.getElementById('gapRemediationOverlay');
+        if (existing) existing.remove();
+
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="gapRemediationOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+                <div style="background:white;border-radius:12px;max-width:520px;width:90%;max-height:85vh;overflow-y:auto;padding:28px;">
+                    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                        <div>
+                            <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${riskColor}20;color:${riskColor};text-transform:uppercase;letter-spacing:.5px;">${escapeHtml(gap.risk_level || 'unknown')} risk</span>
+                        </div>
+                        <button onclick="document.getElementById('gapRemediationOverlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#9ca3af;line-height:1;">&times;</button>
+                    </div>
+                    <h3 style="margin:0 0 6px;font-size:17px;font-weight:600;color:#111827;">${escapeHtml(gap.standard_name || gap.standard_id || 'NDIS Standard')}</h3>
+                    <p style="font-size:12px;color:#6b7280;margin:0 0 16px;">Standard ${escapeHtml(gap.standard_id || '')}</p>
+                    <div style="margin-bottom:16px;">
+                        <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 6px;">Gap Identified</p>
+                        <p style="font-size:14px;color:#4b5563;margin:0;line-height:1.6;">${escapeHtml(gap.gap_description || 'No description available.')}</p>
+                    </div>
+                    ${gap.remediation_action ? `
+                    <div style="background:#F0FDF4;border-left:3px solid #10B981;padding:12px 14px;border-radius:0 6px 6px 0;margin-bottom:20px;">
+                        <p style="font-size:13px;font-weight:600;color:#065F46;margin:0 0 4px;">Recommended Action</p>
+                        <p style="font-size:14px;color:#047857;margin:0;line-height:1.6;">${escapeHtml(gap.remediation_action)}</p>
+                    </div>` : ''}
+                    <button onclick="markGapResolved('${gapId}', ${!isResolved})" style="width:100%;padding:10px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;background:${isResolved ? '#F3F4F6' : '#1B365D'};color:${isResolved ? '#374151' : 'white'};">
+                        ${isResolved ? 'Re-open Gap' : 'Mark as Resolved'}
+                    </button>
+                </div>
+            </div>
+        `);
+    } catch (error) {
+        showToast('Failed to load remediation details.', 'error');
+    }
+}
+
+async function markGapResolved(gapId, resolved) {
+    try {
+        await apiFetch(`/compliance/gaps/${gapId}/resolve`, {
+            method: 'PATCH',
+            body: JSON.stringify({ resolved }),
+        });
+        const overlay = document.getElementById('gapRemediationOverlay');
+        if (overlay) overlay.remove();
+        showToast(resolved ? 'Gap marked as resolved.' : 'Gap re-opened.');
+        loadDashboardData();
+    } catch (error) {
+        showToast('Failed to update gap status.', 'error');
+    }
 }
 
 // ========== CLIENTS ==========
@@ -1496,61 +1557,57 @@ function renderClientDetailView(client) {
     document.getElementById('clientDetailView').style.display = 'block';
 }
 
-function renderComplianceResults(client) {
+async function renderComplianceResults(client) {
     const resultsContainer = document.getElementById('complianceResults');
+    if (!resultsContainer) return;
 
-    // Demo compliance results
-    const results = [
-        {
-            category: 'Personal Planning & Budgeting',
-            status: 'compliant',
-            score: 95,
-            lastChecked: new Date(Date.now() - 3 * 86400000)
-        },
-        {
-            category: 'Plan Implementation',
-            status: 'compliant',
-            score: 88,
-            lastChecked: new Date(Date.now() - 5 * 86400000)
-        },
-        {
-            category: 'Incident Management',
-            status: 'at_risk',
-            score: 72,
-            lastChecked: new Date(Date.now() - 7 * 86400000)
-        },
-        {
-            category: 'Safeguarding',
-            status: 'compliant',
-            score: 92,
-            lastChecked: new Date(Date.now() - 2 * 86400000)
-        }
-    ];
+    resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Loading compliance checks…</p>';
 
-    if (!results || results.length === 0) {
-        resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet.</p>';
+    if (isDemoMode()) {
+        _renderComplianceChecksList(resultsContainer, [
+            { id: 'demo-1', check_type: 'comprehensive', overall_score: 88, status: 'completed', executed_at: new Date(Date.now() - 3 * 86400000).toISOString(), findings: { gaps: 2, total_standards: 17, met: 15 } },
+            { id: 'demo-2', check_type: 'comprehensive', overall_score: 74, status: 'completed', executed_at: new Date(Date.now() - 14 * 86400000).toISOString(), findings: { gaps: 5, total_standards: 17, met: 12 } },
+        ]);
         return;
     }
 
-    resultsContainer.innerHTML = results.map(result => {
-        const statusClass = result.status === 'compliant' ? 'status-compliant' : 'status-warning';
-        const statusIcon = result.status === 'compliant' ? '🟢' : '🟡';
-        const lastCheckedText = timeAgo(result.lastChecked);
+    try {
+        const data = await apiFetch(`/clients/${client.id}/compliance-checks?limit=5`);
+        _renderComplianceChecksList(resultsContainer, data.checks || []);
+    } catch (error) {
+        resultsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load compliance checks.</p>';
+    }
+}
+
+function _renderComplianceChecksList(container, checks) {
+    if (!checks || checks.length === 0) {
+        container.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet. Click "Run Compliance Check" to start.</p>';
+        return;
+    }
+
+    container.innerHTML = checks.map(check => {
+        const score = Math.round(check.overall_score || 0);
+        const color = score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444';
+        const statusLabel = score >= 80 ? 'Compliant' : score >= 50 ? 'At Risk' : 'Non-Compliant';
+        const statusIcon = score >= 80 ? '🟢' : score >= 50 ? '🟡' : '🔴';
+        const findings = check.findings || {};
+        const gaps = findings.gaps || 0;
+        const checkedAt = check.executed_at ? timeAgo(new Date(check.executed_at)) : 'Unknown';
 
         return `
             <div class="compliance-result-card">
                 <div class="compliance-result-header">
                     <div>
-                        <h4>${escapeHtml(result.category)}</h4>
-                        <p class="compliance-checked">Last checked ${lastCheckedText}</p>
+                        <h4>${escapeHtml(check.check_type === 'comprehensive' ? 'Full Compliance Check' : (check.check_type || 'Check'))}</h4>
+                        <p class="compliance-checked">Run ${checkedAt}${gaps > 0 ? ` · ${gaps} gap${gaps !== 1 ? 's' : ''} found` : ''}</p>
                     </div>
-                    <div class="status-badge ${statusClass}">${statusIcon} ${result.status === 'compliant' ? 'Compliant' : 'At Risk'}</div>
+                    <div class="status-badge ${score >= 80 ? 'status-compliant' : 'status-warning'}">${statusIcon} ${statusLabel}</div>
                 </div>
                 <div class="compliance-score">
                     <div class="score-bar">
-                        <div class="score-fill" style="width: ${result.score}%; background: ${result.status === 'compliant' ? '#10B981' : '#F59E0B'};"></div>
+                        <div class="score-fill" style="width: ${score}%; background: ${color};"></div>
                     </div>
-                    <span class="score-text">${result.score}%</span>
+                    <span class="score-text">${score}%</span>
                 </div>
             </div>
         `;
@@ -1685,7 +1742,8 @@ async function triggerClientComplianceCheck() {
     try {
         showLoading(true);
         await apiFetch(`/clients/${currentClientId}/compliance-check`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify({ check_type: 'comprehensive' }),
         });
         showLoading(false);
 
@@ -1859,9 +1917,62 @@ async function confirmRemoveStaff(userId, name) {
     }
 }
 
-function handleSettingsSave(e) {
+async function loadSettingsTab() {
+    if (isDemoMode() || !currentOrgId) return;
+    try {
+        const org = await apiFetch(`/organizations/${currentOrgId}`);
+        const nameEl = document.getElementById('settingsOrgName');
+        const abnEl = document.getElementById('settingsABN');
+        const ndisEl = document.getElementById('settingsNDISReg');
+        const addressEl = document.getElementById('settingsAddress');
+        const auditDateEl = document.getElementById('settingsAuditDate');
+        const auditTypeEl = document.getElementById('settingsAuditType');
+        if (nameEl) nameEl.value = org.name || '';
+        if (abnEl) abnEl.value = org.abn || '';
+        if (ndisEl) ndisEl.value = org.ndis_registration_number || '';
+        if (addressEl) addressEl.value = org.address || '';
+        if (auditDateEl) auditDateEl.value = org.audit_date || '';
+        if (auditTypeEl) auditTypeEl.value = org.audit_type || '';
+    } catch (error) {
+        console.warn('Could not load org settings:', error);
+    }
+}
+
+async function handleSettingsSave(e) {
     e.preventDefault();
-    showToast('Settings updated successfully!');
+    if (isDemoMode() || !currentOrgId) {
+        showToast('Settings saved (demo mode — no changes persisted).');
+        return;
+    }
+    const payload = {};
+    const name = document.getElementById('settingsOrgName')?.value.trim();
+    const abn = document.getElementById('settingsABN')?.value.trim();
+    const ndisReg = document.getElementById('settingsNDISReg')?.value.trim();
+    const address = document.getElementById('settingsAddress')?.value.trim();
+    const auditDate = document.getElementById('settingsAuditDate')?.value;
+    const auditType = document.getElementById('settingsAuditType')?.value.trim();
+    if (name) payload.name = name;
+    if (abn) payload.abn = abn;
+    if (ndisReg) payload.ndis_registration_number = ndisReg;
+    if (address) payload.address = address;
+    if (auditDate) payload.audit_date = auditDate;
+    if (auditType) payload.audit_type = auditType;
+
+    if (Object.keys(payload).length === 0) {
+        showToast('No changes to save.');
+        return;
+    }
+    try {
+        const updated = await apiFetch(`/organizations/${currentOrgId}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        showToast('Organisation settings saved.');
+        const nameEl = document.getElementById('orgName');
+        if (nameEl && updated.name) nameEl.textContent = updated.name;
+    } catch (error) {
+        showToast('Failed to save settings: ' + error.message, 'error');
+    }
 }
 
 // ========== INTEGRATIONS (external storage) ==========
@@ -2147,8 +2258,130 @@ function handleIntegrationReturnFromOAuth() {
     }
 }
 
+async function loadReportsTab() {
+    const container = document.getElementById('reportsContent');
+    if (!container) return;
+
+    if (isDemoMode()) {
+        _renderReportsSummary(container, {
+            organization_name: 'Sunshine Support Services',
+            overall_compliance_score: 88,
+            total_documents: 12,
+            critical_gaps: 1,
+            high_gaps: 2,
+            audit_date: null,
+            days_until_audit: null,
+            compliant_standards: 14,
+            needs_attention_standards: 2,
+            non_compliant_standards: 1,
+            not_assessed_standards: 0,
+        }, [
+            { standard_number: '1.1', title: 'Person-centred approaches', score: 92, status: 'compliant' },
+            { standard_number: '1.2', title: 'Individual values and beliefs', score: 87, status: 'compliant' },
+            { standard_number: '1.3', title: 'Responsive support provision', score: 61, status: 'needs_attention' },
+            { standard_number: '2.1', title: 'Governance and operational management', score: 78, status: 'needs_attention' },
+            { standard_number: '3.1', title: 'Feedback and complaints management', score: 55, status: 'non_compliant' },
+        ]);
+        return;
+    }
+
+    container.innerHTML = '<p style="color:#6b7280;text-align:center;padding:40px;">Loading report data…</p>';
+
+    try {
+        const [dashboard, scoresResp] = await Promise.all([
+            apiFetch('/dashboard/'),
+            apiFetch('/compliance/scores'),
+        ]);
+        const standards = (scoresResp && scoresResp.scores) ? scoresResp.scores : [];
+        _renderReportsSummary(container, dashboard, standards);
+    } catch (error) {
+        container.innerHTML = `<p style="color:#ef4444;text-align:center;padding:40px;">Failed to load report data: ${escapeHtml(error.message)}</p>`;
+    }
+}
+
+function _renderReportsSummary(container, dash, standards) {
+    const score = Math.round(dash.overall_compliance_score || 0);
+    const scoreColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+    const totalGaps = (dash.critical_gaps || 0) + (dash.high_gaps || 0);
+    const generatedDate = new Date().toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const standardsRows = standards.map(s => {
+        const pct = Math.round(s.score || 0);
+        const c = pct >= 80 ? '#10B981' : pct >= 60 ? '#F59E0B' : '#EF4444';
+        const label = s.status === 'compliant' ? 'Compliant' : s.status === 'needs_attention' ? 'Needs Attention' : 'Non-Compliant';
+        return `<tr>
+            <td style="padding:8px 12px;font-size:13px;color:#374151;">${escapeHtml(s.standard_number || '')}</td>
+            <td style="padding:8px 12px;font-size:13px;color:#374151;">${escapeHtml(s.title || s.standard_name || '')}</td>
+            <td style="padding:8px 12px;font-size:13px;font-weight:600;color:${c};">${pct}%</td>
+            <td style="padding:8px 12px;font-size:13px;color:${c};">${label}</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div id="printableReport" style="max-width:860px;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:24px;">
+                <div>
+                    <h2 style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1B365D;">NDIS Compliance Report</h2>
+                    <p style="margin:0;color:#6b7280;font-size:13px;">${escapeHtml(dash.organization_name || '')} · Generated ${generatedDate}</p>
+                </div>
+                <button onclick="printReport()" class="btn btn-secondary" style="font-size:13px;">Print / Save PDF</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;">
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${scoreColor};">${score}%</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Overall Score</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#1B365D;">${dash.total_documents || 0}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Documents</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${totalGaps > 0 ? '#EF4444' : '#10B981'};">${totalGaps}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Critical/High Gaps</div>
+                </div>
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#1B365D;">${dash.compliant_standards || 0}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Standards Met</div>
+                </div>
+                ${dash.days_until_audit !== null && dash.days_until_audit !== undefined ? `
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:${dash.days_until_audit <= 30 ? '#EF4444' : dash.days_until_audit <= 90 ? '#F59E0B' : '#1B365D'};">${dash.days_until_audit}</div>
+                    <div style="font-size:12px;color:#6b7280;margin-top:4px;">Days to Audit</div>
+                </div>` : ''}
+            </div>
+
+            ${standards.length > 0 ? `
+            <h3 style="font-size:15px;font-weight:600;color:#1B365D;margin:0 0 12px;">Standards Breakdown</h3>
+            <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#F9FAFB;border-bottom:1px solid #e5e7eb;">
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">No.</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Standard</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Score</th>
+                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#6b7280;text-align:left;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${standardsRows}</tbody>
+                </table>
+            </div>` : '<p style="color:#6b7280;font-size:14px;">No standards scored yet. Upload and scan documents to populate this report.</p>'}
+        </div>
+    `;
+}
+
 function generateReport() {
-    showToast('Report generation started. Check your email in a few moments.', 'info');
+    loadReportsTab();
+}
+
+function printReport() {
+    const el = document.getElementById('printableReport');
+    if (!el) return;
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>NDIS Compliance Report</title>
+        <style>body{font-family:Inter,sans-serif;padding:32px;color:#111;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:8px 12px;font-size:13px;text-align:left;}</style>
+        </head><body>${el.outerHTML}<script>window.print();window.close();<\/script></body></html>`);
+    w.document.close();
 }
 
 // ========== UTILITIES ==========
