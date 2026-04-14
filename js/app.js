@@ -2038,16 +2038,42 @@ async function loadStaffList() {
     }
 
     try {
-        const data = await apiFetch('/staff/');
-        if (data && data.staff) {
-            renderStaffList(data.staff);
-        }
+        const [staffData, certData] = await Promise.all([
+            apiFetch('/staff/'),
+            apiFetch('/staff/certifications').catch(() => ({ certifications: [] })),
+        ]);
+        const staff = (staffData && staffData.staff) ? staffData.staff : [];
+        const certs = (certData && certData.certifications) ? certData.certifications : [];
+        // Index certs by profile_id → cert_type → cert record
+        const certMap = {};
+        certs.forEach(c => {
+            if (!certMap[c.profile_id]) certMap[c.profile_id] = {};
+            certMap[c.profile_id][c.cert_type] = c;
+        });
+        renderStaffList(staff, certMap);
     } catch (error) {
         console.error('Failed to load staff:', error);
     }
 }
 
-function renderStaffList(staffMembers) {
+function _certBadge(cert) {
+    if (!cert) return '<span class="badge badge-warning">— Not recorded</span>';
+    const today = new Date();
+    const expiry = cert.expiry_date ? new Date(cert.expiry_date) : null;
+    if (!expiry) {
+        // No expiry — once-off cert (ndis_orientation) or screening with no date
+        return cert.issued_date
+            ? `<span class="badge badge-success" title="Issued ${cert.issued_date}">✓ Completed</span>`
+            : '<span class="badge badge-warning">— Not recorded</span>';
+    }
+    const daysLeft = Math.round((expiry - today) / 86400000);
+    if (daysLeft < 0) return `<span class="badge badge-danger" title="Expired ${cert.expiry_date}">✗ Expired</span>`;
+    if (daysLeft <= 60) return `<span class="badge badge-warning" title="Expires ${cert.expiry_date}">⚠ Expires in ${daysLeft}d</span>`;
+    return `<span class="badge badge-success" title="Valid until ${cert.expiry_date}">✓ Current</span>`;
+}
+
+function renderStaffList(staffMembers, certMap) {
+    certMap = certMap || {};
     const tbody = document.querySelector('.staff-table tbody');
     if (!tbody) return;
 
@@ -2069,21 +2095,67 @@ function renderStaffList(staffMembers) {
         const role = escapeHtml(member.role || 'member');
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
         const isSelf = member.id === selfId;
+        const memberCerts = certMap[member.id] || {};
+
+        const addCertBtn = `<button class="btn btn-small" style="margin-right:6px;" onclick="openCertModal('${member.id}','${name}')">Certs</button>`;
         const actions = isSelf
-            ? `<span style="color:#9ca3af; font-size:13px;">(you)</span>`
-            : `<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
+            ? `${addCertBtn}<span style="color:#9ca3af; font-size:13px;">(you)</span>`
+            : `${addCertBtn}<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
                <button class="btn btn-small btn-danger" onclick="confirmRemoveStaff('${member.id}','${name}')">Remove</button>`;
+
         return `
             <tr>
                 <td><strong>${name}</strong></td>
                 <td>${roleLabel}</td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td>${_certBadge(memberCerts.worker_screening)}</td>
+                <td>${_certBadge(memberCerts.first_aid)}</td>
+                <td>${_certBadge(memberCerts.ndis_orientation)}</td>
                 <td>${actions}</td>
             </tr>
         `;
     }).join('');
+}
+
+function openCertModal(userId, staffName) {
+    document.getElementById('certModalUserId').value = userId;
+    document.getElementById('certModalStaffName').textContent = staffName;
+    document.getElementById('certModalError').style.display = 'none';
+    document.getElementById('certModalForm').reset();
+    document.getElementById('certModal').style.display = 'flex';
+}
+
+function closeCertModal() {
+    document.getElementById('certModal').style.display = 'none';
+}
+
+async function handleCertSave(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('certModalError');
+    errorEl.style.display = 'none';
+
+    const userId = document.getElementById('certModalUserId').value;
+    const certType = document.getElementById('certModalType').value;
+    const issuedDate = document.getElementById('certModalIssued').value || null;
+    const expiryDate = document.getElementById('certModalExpiry').value || null;
+    const notes = document.getElementById('certModalNotes').value.trim() || null;
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    try {
+        await apiFetch(`/staff/${userId}/certifications/${certType}`, {
+            method: 'PUT',
+            body: JSON.stringify({ issued_date: issuedDate, expiry_date: expiryDate, notes }),
+        });
+        closeCertModal();
+        showToast('Certification saved.');
+        loadStaffList();
+    } catch (error) {
+        errorEl.textContent = error.message || 'Failed to save certification.';
+        errorEl.style.display = 'block';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Certification'; }
+    }
 }
 
 function openEditStaffModal(userId, currentRole, name) {

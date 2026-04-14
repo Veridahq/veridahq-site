@@ -406,9 +406,9 @@
                                     <tr>
                                         <th>Name</th>
                                         <th>Role</th>
-                                        <th>Disability Awareness</th>
+                                        <th>Worker Screening</th>
                                         <th>First Aid</th>
-                                        <th>NDIS Standards</th>
+                                        <th>NDIS Orientation</th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -821,6 +821,43 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
                     <button type="button" class="btn btn-secondary" onclick="closeEditStaffModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Staff Certification Modal -->
+    <div id="certModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeCertModal()">×</button>
+            <h2>Update Certification</h2>
+            <p style="font-size:14px;color:#6b7280;margin-bottom:20px;">Recording cert for <strong id="certModalStaffName"></strong></p>
+            <p id="certModalError" style="display:none;color:#ef4444;font-size:13px;margin-bottom:12px;"></p>
+            <input type="hidden" id="certModalUserId">
+            <form id="certModalForm" onsubmit="handleCertSave(event)">
+                <div class="form-group">
+                    <label class="form-label">Certification Type</label>
+                    <select class="form-input" id="certModalType">
+                        <option value="worker_screening">Worker Screening Check</option>
+                        <option value="first_aid">First Aid / CPR</option>
+                        <option value="ndis_orientation">NDIS Orientation Module</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date Issued</label>
+                    <input type="date" class="form-input" id="certModalIssued">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expiry Date <span style="color:#9ca3af;font-size:12px;">(leave blank if no expiry)</span></label>
+                    <input type="date" class="form-input" id="certModalExpiry">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <input type="text" class="form-input" id="certModalNotes" placeholder="e.g. Certificate number, provider…">
+                </div>
+                <div style="display:flex;gap:12px;margin-top:24px;">
+                    <button type="submit" class="btn btn-primary" style="flex:1;">Save Certification</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeCertModal()" style="flex:1;">Cancel</button>
                 </div>
             </form>
         </div>
