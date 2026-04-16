@@ -1496,62 +1496,70 @@ function renderClientDetailView(client) {
     document.getElementById('clientDetailView').style.display = 'block';
 }
 
-function renderComplianceResults(client) {
+async function renderComplianceResults(client) {
     const resultsContainer = document.getElementById('complianceResults');
+    resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Loading compliance checks...</p>';
 
-    // Demo compliance results
-    const results = [
-        {
-            category: 'Personal Planning & Budgeting',
-            status: 'compliant',
-            score: 95,
-            lastChecked: new Date(Date.now() - 3 * 86400000)
-        },
-        {
-            category: 'Plan Implementation',
-            status: 'compliant',
-            score: 88,
-            lastChecked: new Date(Date.now() - 5 * 86400000)
-        },
-        {
-            category: 'Incident Management',
-            status: 'at_risk',
-            score: 72,
-            lastChecked: new Date(Date.now() - 7 * 86400000)
-        },
-        {
-            category: 'Safeguarding',
-            status: 'compliant',
-            score: 92,
-            lastChecked: new Date(Date.now() - 2 * 86400000)
-        }
-    ];
-
-    if (!results || results.length === 0) {
-        resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet.</p>';
+    if (isDemoMode()) {
+        const demoResults = [
+            { category: 'Personal Planning & Budgeting', status: 'compliant', score: 95, lastChecked: new Date(Date.now() - 3 * 86400000) },
+            { category: 'Plan Implementation', status: 'compliant', score: 88, lastChecked: new Date(Date.now() - 5 * 86400000) },
+            { category: 'Incident Management', status: 'at_risk', score: 72, lastChecked: new Date(Date.now() - 7 * 86400000) },
+            { category: 'Safeguarding', status: 'compliant', score: 92, lastChecked: new Date(Date.now() - 2 * 86400000) }
+        ];
+        _renderComplianceCheckCards(resultsContainer, demoResults.map(r => ({
+            check_type: r.category,
+            status: r.status === 'compliant' ? 'passed' : 'warning',
+            overall_score: r.score,
+            created_at: r.lastChecked.toISOString(),
+            findings: []
+        })));
         return;
     }
 
-    resultsContainer.innerHTML = results.map(result => {
-        const statusClass = result.status === 'compliant' ? 'status-compliant' : 'status-warning';
-        const statusIcon = result.status === 'compliant' ? '🟢' : '🟡';
-        const lastCheckedText = timeAgo(result.lastChecked);
+    try {
+        const data = await apiFetch(`/clients/${client.id}/compliance-checks?limit=10`);
+        const checks = (data && data.checks) ? data.checks : [];
+        _renderComplianceCheckCards(resultsContainer, checks);
+    } catch (error) {
+        resultsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load compliance checks.</p>';
+    }
+}
+
+function _renderComplianceCheckCards(container, checks) {
+    if (!checks || checks.length === 0) {
+        container.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet. Click "Run Compliance Check" to start.</p>';
+        return;
+    }
+
+    container.innerHTML = checks.map(check => {
+        const isPassed = check.status === 'passed';
+        const isFailed = check.status === 'failed';
+        const statusClass = isPassed ? 'status-compliant' : isFailed ? 'status-non-compliant' : 'status-warning';
+        const statusIcon = isPassed ? '🟢' : isFailed ? '🔴' : '🟡';
+        const statusText = isPassed ? 'Passed' : isFailed ? 'Failed' : check.status === 'processing' ? 'Processing...' : 'Warning';
+        const score = check.overall_score != null ? check.overall_score : null;
+        const scoreBar = score != null ? `
+            <div class="compliance-score">
+                <div class="score-bar">
+                    <div class="score-fill" style="width: ${score}%; background: ${isPassed ? '#10B981' : isFailed ? '#EF4444' : '#F59E0B'};"></div>
+                </div>
+                <span class="score-text">${score}%</span>
+            </div>` : '';
+        const findingCount = (check.findings || []).length;
+        const findingsNote = findingCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:4px 0 0;">${findingCount} finding${findingCount !== 1 ? 's' : ''}</p>` : '';
 
         return `
             <div class="compliance-result-card">
                 <div class="compliance-result-header">
                     <div>
-                        <h4>${escapeHtml(result.category)}</h4>
-                        <p class="compliance-checked">Last checked ${lastCheckedText}</p>
+                        <h4>${escapeHtml(check.check_type || 'Compliance Check')}</h4>
+                        <p class="compliance-checked">Run ${check.created_at ? timeAgo(new Date(check.created_at)) : 'recently'}</p>
+                        ${findingsNote}
                     </div>
-                    <div class="status-badge ${statusClass}">${statusIcon} ${result.status === 'compliant' ? 'Compliant' : 'At Risk'}</div>
+                    <div class="status-badge ${statusClass}">${statusIcon} ${statusText}</div>
                 </div>
-                <div class="compliance-score">
-                    <div class="score-bar">
-                        <div class="score-fill" style="width: ${result.score}%; background: ${result.status === 'compliant' ? '#10B981' : '#F59E0B'};"></div>
-                    </div>
-                    <span class="score-text">${result.score}%</span>
-                </div>
+                ${scoreBar}
             </div>
         `;
     }).join('');
