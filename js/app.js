@@ -818,13 +818,17 @@ function renderDocumentsGrid(documents) {
         const ext = filename.split('.').pop().toLowerCase();
         const icon = iconMap[ext] || iconMap['default'];
         const date = (doc.created_at || doc.uploaded_at) ? timeAgo(new Date(doc.created_at || doc.uploaded_at)) : 'Unknown';
-        const status = doc.processing_status || doc.compliance_status || doc.status || 'pending';
+        const processingStatus = doc.processing_status || doc.status || 'pending';
+        const complianceStatus = doc.compliance_status;
+        const status = complianceStatus || processingStatus;
         let statusBadge;
 
-        if ((status === 'compliant' || status === 'completed') && doc.processing_error) {
+        if (doc.processing_error) {
             statusBadge = '<span class="status-badge" style="background:#FEF2F2;color:#DC2626;">⚠️ AI Error</span>';
-        } else if (status === 'compliant' || status === 'completed') {
+        } else if (status === 'compliant') {
             statusBadge = '<span class="status-badge status-compliant">🟢 Compliant</span>';
+        } else if (processingStatus === 'completed' && !complianceStatus) {
+            statusBadge = '<span class="status-badge" style="background:#F0FDF4;color:#16A34A;">✅ Processed</span>';
         } else if (status === 'gaps_found' || status === 'at_risk') {
             statusBadge = '<span class="status-badge status-warning">🟡 Gaps Found</span>';
         } else if (status === 'processing') {
@@ -1070,7 +1074,8 @@ async function viewDocument(docId) {
 
         // Build scores HTML
         let scoresHtml = '';
-        if (scores.length > 0) {
+        const allZero = scores.length > 0 && scores.every(s => !s.score || s.score === 0);
+        if (scores.length > 0 && !allZero) {
             scoresHtml = `
                 <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
                 <div style="max-height: 200px; overflow-y: auto;">
@@ -1078,12 +1083,14 @@ async function viewDocument(docId) {
                         const pct = Math.round(s.score || 0);
                         const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
-                            <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
+                            <span style="font-size:13px;">${escapeHtml(s.standard_title ? (s.standard_number ? s.standard_number + ': ' + s.standard_title : s.standard_title) : s.standard_number || s.standard_id || 'Standard')}</span>
                             <span style="font-weight:600;color:${color};">${pct}%</span>
                         </div>`;
                     }).join('')}
                 </div>
             `;
+        } else if (allZero) {
+            scoresHtml = '<p style="color:#6b7280;font-size:13px;margin-top:12px;">Not Assessed — no compliance scores have been recorded for this document.</p>';
         } else if (statusLabel === 'completed') {
             scoresHtml = '<p style="color:#6b7280;font-size:13px;margin-top:12px;">No compliance scores recorded for this document.</p>';
         }

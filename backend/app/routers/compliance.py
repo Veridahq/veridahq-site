@@ -80,6 +80,7 @@ async def get_standards(
 # ---------------------------------------------------------------------------
 @router.get("/scores", response_model=OverallComplianceResponse)
 async def get_compliance_scores(
+    document_id: Optional[str] = Query(None, description="Filter scores to a specific document"),
     auth_data: dict = Depends(get_current_user),
 ):
     """
@@ -90,6 +91,8 @@ async def get_compliance_scores(
     - traffic_light: green / amber / red / grey
     - Per-standard scores with evidence and notes
     - Breakdown by NDIS standard category
+
+    Optionally filtered to a single document via ?document_id=...
     """
     org_id = get_user_org(auth_data)
 
@@ -103,12 +106,14 @@ async def get_compliance_scores(
     standards = {s["id"]: s for s in (standards_response.data or [])}
 
     # Fetch compliance scores joined with standard metadata
-    scores_response = (
+    scores_query = (
         supabase_admin.table("compliance_scores")
         .select("*, ndis_standards(standard_number, title, category)")
         .eq("organization_id", org_id)
-        .execute()
     )
+    if document_id:
+        scores_query = scores_query.eq("document_id", document_id)
+    scores_response = scores_query.execute()
     scores_data = scores_response.data or []
 
     # Calculate overall score (average of all scored standards)
