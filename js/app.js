@@ -61,10 +61,11 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4500);
 }
 
-// Fetch wrapper with error handling
+// Fetch wrapper with error handling and timeout
 async function apiFetch(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('accessToken');
+    const timeoutMs = options.timeout || 60000; // 60s default for Render cold starts
 
     const headers = {
         'Content-Type': 'application/json',
@@ -76,10 +77,16 @@ async function apiFetch(endpoint, options = {}) {
     }
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
         const response = await fetch(url, {
             ...options,
             headers,
+            signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.status === 401) {
             localStorage.removeItem('accessToken');
@@ -952,7 +959,19 @@ async function loadDashboardData() {
 
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
-        renderDemoData();
+        if (isDemoMode()) {
+            renderDemoData();
+        } else {
+            // Show empty state, not fake demo data
+            document.getElementById('statMet').textContent = '0';
+            document.getElementById('statGaps').textContent = '0';
+            document.getElementById('statDocs').textContent = '0';
+            updateGaugeChart(0);
+            renderModulesGrid([]);
+            renderGapList([]);
+            renderDocumentsGrid([]);
+            showToast('Could not load dashboard data. The server may be waking up — try refreshing in a moment.', 'error');
+        }
     }
 }
 
@@ -2129,7 +2148,7 @@ async function handleOrgSave(e) {
     const auditDate = document.getElementById('settingsAuditDate').value;
 
     if (isDemoMode()) {
-        document.getElementById('orgName').textContent = orgName || 'Sunshine Support Services';
+        document.getElementById('orgName').textContent = orgName || 'My Organisation';
         showToast('Organisation saved!', 'success');
         return;
     }
@@ -2548,12 +2567,59 @@ function handleIntegrationReturnFromOAuth() {
     }
 }
 
-function generateReport() {
+async function generateReport() {
     if (isDemoMode()) {
         showToast('Export is available with a real account.', 'info');
         return;
     }
-    showToast('Report export coming soon. Your compliance data is shown on-screen above.', 'info');
+
+    showToast('Generating PDF report...', 'info');
+
+    try {
+        const [dashData, gapsData] = await Promise.all([
+            apiFetch('/dashboard/').catch(() => null),
+            apiFetch('/compliance/gaps').catch(() => null),
+        ]);
+
+        const data = dashData || {};
+        const gaps = gapsData ? (gapsData.gaps || gapsData) : [];
+        const orgName = document.getElementById('orgName')?.textContent || 'Organisation';
+        const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+        const score = data.overall_compliance_score != null ? Math.round(data.overall_compliance_score) : 'N/A';
+        const scoreColor = score === 'N/A' ? '#6b7280' : score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+
+        const gapRows = (Array.isArray(gaps) ? gaps : []).slice(0, 15).map(g => {
+            const sev = (g.severity || g.risk_level || 'medium').toUpperCase();
+            return `<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;color:${sev === 'CRITICAL' ? '#EF4444' : sev === 'HIGH' ? '#F59E0B' : '#3B82F6'}">${sev}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${g.title || g.standard_name || '—'}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${g.recommendation || '—'}</td></tr>`;
+        }).join('');
+
+        const html = `
+        <html><head><title>Compliance Report - ${orgName}</title>
+        <style>body{font-family:Arial,sans-serif;margin:40px;color:#1b365d;} h1{font-size:24px;} h2{font-size:18px;margin-top:30px;border-bottom:2px solid #2a9d8f;padding-bottom:6px;} table{width:100%;border-collapse:collapse;margin-top:12px;} th{text-align:left;padding:8px 12px;background:#f3f4f6;border-bottom:2px solid #d1d5db;font-size:13px;} td{font-size:13px;} .score{font-size:48px;font-weight:700;color:${scoreColor};} .meta{color:#6b7280;font-size:13px;margin-bottom:24px;}</style></head>
+        <body>
+            <h1>NDIS Compliance Report</h1>
+            <p class="meta">${orgName} &bull; Generated ${today}</p>
+            <h2>Overall Compliance Score</h2>
+            <p class="score">${score}${score !== 'N/A' ? '%' : ''}</p>
+            <p>Standards met: <strong>${data.compliant_standards || 0}</strong> &bull; Critical gaps: <strong>${data.critical_gaps || 0}</strong> &bull; Documents analysed: <strong>${data.total_documents || 0}</strong></p>
+            ${gaps.length > 0 ? `<h2>Compliance Gaps</h2><table><tr><th>Severity</th><th>Issue</th><th>Recommendation</th></tr>${gapRows}</table>` : '<h2>Compliance Gaps</h2><p>No gaps identified.</p>'}
+            <p style="margin-top:40px;font-size:11px;color:#9ca3af;">Report generated by Verida &bull; veridahq.com</p>
+        </body></html>`;
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Compliance_Report_${orgName.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Report downloaded! Open the HTML file in your browser and use Print → Save as PDF for a PDF version.', 'success');
+    } catch (error) {
+        console.error('Report generation failed:', error);
+        showToast('Failed to generate report: ' + error.message, 'error');
+    }
 }
 
 // ========== UTILITIES ==========
