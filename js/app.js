@@ -602,18 +602,19 @@ function renderGapList(gaps) {
     }
 
     list.innerHTML = gaps.map(gap => {
-        const severity = (gap.severity || 'medium').toUpperCase();
-        const severityClass = severity === 'CRITICAL' ? 'gap-critical' : severity === 'HIGH' ? 'gap-warning' : 'gap-info';
+        const riskLevel = (gap.risk_level || gap.severity || 'medium').toUpperCase();
+        const severityClass = riskLevel === 'CRITICAL' ? 'gap-critical' : riskLevel === 'HIGH' ? 'gap-warning' : 'gap-info';
+        const stdLabel = gap.standard_number ? `Standard ${gap.standard_number}` : '';
 
         return `
-            <div class="gap-item ${severityClass}">
-                <div class="gap-severity">${severity}</div>
+            <div class="gap-item ${severityClass}" data-gap-id="${gap.id || ''}" data-remediation="${escapeHtml(gap.remediation_action || '')}">
+                <div class="gap-severity">${riskLevel}</div>
                 <div class="gap-content">
-                    <div class="gap-title">${escapeHtml(gap.title || gap.gap_description || 'Compliance Gap')}</div>
-                    <div class="gap-detail">${escapeHtml(gap.recommendation || gap.details || '')}</div>
+                    <div class="gap-title">${escapeHtml(gap.gap_description || gap.title || 'Compliance Gap')}</div>
+                    <div class="gap-detail">${escapeHtml(stdLabel ? stdLabel + (gap.standard_title ? ' — ' + gap.standard_title : '') : (gap.details || ''))}</div>
                 </div>
                 <div class="gap-action">
-                    <button class="btn btn-small btn-primary" onclick="viewGapRemediation('${gap.id || ''}')">View Remediation</button>
+                    <button class="btn btn-small btn-primary" onclick="viewGapRemediation('${gap.id || ''}', this.closest('.gap-item'))">View Remediation</button>
                 </div>
             </div>
         `;
@@ -1165,12 +1166,42 @@ async function deleteDocument(docId) {
     }
 }
 
-function viewGapRemediation(gapId) {
+function viewGapRemediation(gapId, gapEl) {
     if (isDemoMode() || !gapId) {
         showToast('Detailed remediation steps will be available after uploading and scanning your documents.', 'info');
         return;
     }
-    showToast('Remediation details coming soon.', 'info');
+
+    // Read remediation_action stored on the element by renderGapList
+    const remediation = gapEl ? gapEl.dataset.remediation : null;
+    const description = gapEl ? gapEl.querySelector('.gap-title')?.textContent : null;
+
+    if (!remediation) {
+        showToast('No remediation action recorded for this gap.', 'info');
+        return;
+    }
+
+    // Show in a simple modal overlay
+    const existing = document.getElementById('remediationOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'remediationOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:520px;width:90%;padding:24px;max-height:80vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;">Remediation Action</h3>
+                <button onclick="document.getElementById('remediationOverlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;">&times;</button>
+            </div>
+            ${description ? `<p style="font-size:13px;color:#374151;font-weight:500;margin-bottom:12px;">${escapeHtml(description)}</p>` : ''}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;">
+                <p style="margin:0;font-size:14px;color:#166534;line-height:1.6;">${escapeHtml(remediation)}</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 }
 
 // ========== CLIENTS ==========
