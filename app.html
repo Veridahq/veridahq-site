@@ -178,7 +178,7 @@
         <div class="main-content">
             <!-- Navbar -->
             <nav class="navbar">
-                <div class="navbar-org" id="orgName">Sunshine Support Services</div>
+                <div class="navbar-org" id="orgName"></div>
                 <div class="navbar-right">
                     <div class="notification-icon" title="Notifications">🔔</div>
                     <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #1b365d, #2a9d8f); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer;" title="Profile">DU</div>
@@ -209,16 +209,16 @@
                                 <div class="score-stats">
                                     <div class="stat">
                                         <div class="stat-label">Standards Met</div>
-                                        <div class="stat-value" id="statMet">18</div>
+                                        <div class="stat-value" id="statMet">0</div>
                                         <div class="stat-detail">of 20</div>
                                     </div>
                                     <div class="stat">
                                         <div class="stat-label">Critical Gaps</div>
-                                        <div class="stat-value danger" id="statGaps">2</div>
+                                        <div class="stat-value danger" id="statGaps">0</div>
                                     </div>
                                     <div class="stat">
                                         <div class="stat-label">Documents</div>
-                                        <div class="stat-value" id="statDocs">8</div>
+                                        <div class="stat-value" id="statDocs">0</div>
                                     </div>
                                 </div>
                             </div>
@@ -441,7 +441,7 @@
                         <div class="settings-grid">
                             <div class="settings-card">
                                 <h3>Profile</h3>
-                                <form id="profileSettingsForm" onsubmit="handleProfileSave(event)">
+                                <form id="profileSettingsForm" onsubmit="handleSettingsSave(event)">
                                     <div class="form-group">
                                         <label class="form-label">Full Name</label>
                                         <input type="text" class="form-input" id="settingsFullName" placeholder="Your name">
@@ -463,19 +463,19 @@
                                 <form id="orgSettingsForm" onsubmit="handleOrgSave(event)">
                                     <div class="form-group">
                                         <label class="form-label">Organisation Name</label>
-                                        <input type="text" id="settingsOrgName" class="form-input" value="Loading..." disabled>
+                                        <input type="text" id="settingsOrgName" class="form-input" placeholder="Your organisation name">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Current Plan</label>
-                                        <input type="text" id="settingsPlanTier" class="form-input" value="Loading..." disabled>
+                                        <input type="text" id="settingsPlanTier" class="form-input" value="" disabled style="background:#f9fafb; color:#6b7280;">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">NDIS Registration Number</label>
-                                        <input type="text" id="settingsNdisReg" class="form-input" value="Not set" disabled>
+                                        <input type="text" id="settingsNdisReg" class="form-input" placeholder="e.g. 4050012345">
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Audit Date</label>
-                                        <input type="text" id="settingsAuditDate" class="form-input" value="Not set" disabled>
+                                        <input type="date" id="settingsAuditDate" class="form-input">
                                     </div>
                                     <button type="submit" class="btn btn-primary" style="width:100%;">Save Organisation</button>
                                 </form>

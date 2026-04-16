@@ -61,8 +61,8 @@ function showToast(message, type = 'success') {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4500);
 }
 
-// Fetch wrapper with error handling
-async function apiFetch(endpoint, options = {}) {
+// Fetch wrapper with error handling and retry for Render cold-start
+async function apiFetch(endpoint, options = {}, _retries = 2) {
     const url = `${API_BASE_URL}${endpoint}`;
     const token = localStorage.getItem('accessToken');
 
@@ -96,6 +96,13 @@ async function apiFetch(endpoint, options = {}) {
 
         return await response.json();
     } catch (error) {
+        // Retry GET requests on network failure (handles Render cold-start timeouts)
+        const method = (options.method || 'GET').toUpperCase();
+        if (_retries > 0 && method === 'GET' && error.name !== 'AbortError') {
+            console.warn(`API network error on ${endpoint}, retrying in 4s… (${_retries} left)`);
+            await new Promise(r => setTimeout(r, 4000));
+            return apiFetch(endpoint, options, _retries - 1);
+        }
         console.error('API Error:', error);
         throw error;
     }
@@ -952,7 +959,18 @@ async function loadDashboardData() {
 
     } catch (error) {
         console.error('Failed to load dashboard data:', error);
-        renderDemoData();
+        if (isDemoMode()) {
+            renderDemoData();
+        } else {
+            // Show zeros — don't pollute a real account with fake demo numbers
+            document.getElementById('statMet').textContent = '0';
+            document.getElementById('statGaps').textContent = '0';
+            document.getElementById('statDocs').textContent = '0';
+            renderModulesGrid([]);
+            renderGapList([]);
+            renderDocumentsGrid([]);
+            showToast('Could not reach the server. Please refresh to try again.', 'error');
+        }
     }
 }
 
@@ -2076,24 +2094,44 @@ async function loadSettingsData() {
         return;
     }
 
+    const planLabels = { essentials: 'Essentials — $49/month', growth: 'Growth — $149/month', scale: 'Scale — $349/month' };
+
+    // Populate from cache immediately so fields aren't blank while fetching
+    if (currentUser) {
+        const setInput = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        setInput('settingsFullName', currentUser.full_name);
+        setInput('settingsEmail', currentUser.email);
+        const cachedOrg = currentUser.organization || {};
+        if (cachedOrg.name) document.getElementById('settingsOrgName').value = cachedOrg.name;
+        if (cachedOrg.plan_tier) document.getElementById('settingsPlanTier').value = planLabels[cachedOrg.plan_tier] || cachedOrg.plan_tier;
+        if (cachedOrg.ndis_registration_number) document.getElementById('settingsNdisReg').value = cachedOrg.ndis_registration_number;
+        if (cachedOrg.audit_date) document.getElementById('settingsAuditDate').value = cachedOrg.audit_date.slice(0, 10);
+    }
+
     try {
         const me = await apiFetch('/auth/me');
         const org = me.organization || {};
 
-        const setVal = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.value = val || 'Not set';
-        };
+        // Update global cache with fresh org data
+        currentUser = me;
+        localStorage.setItem('currentUser', JSON.stringify(me));
 
         const setInput = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
         setInput('settingsFullName', me.full_name);
         setInput('settingsEmail', me.email);
 
-        const planLabels = { essentials: 'Essentials — $49/month', growth: 'Growth — $149/month', scale: 'Scale — $349/month' };
-        setVal('settingsOrgName', org.name);
-        setVal('settingsPlanTier', planLabels[org.plan_tier] || org.plan_tier || 'Essentials');
-        setVal('settingsNdisReg', org.ndis_registration_number);
-        setVal('settingsAuditDate', org.audit_date ? new Date(org.audit_date).toLocaleDateString('en-AU') : null);
+        document.getElementById('settingsOrgName').value = org.name || '';
+        document.getElementById('settingsPlanTier').value = planLabels[org.plan_tier] || org.plan_tier || 'Essentials';
+        document.getElementById('settingsNdisReg').value = org.ndis_registration_number || '';
+        // audit_date arrives as "YYYY-MM-DD" — use first 10 chars for the date input
+        document.getElementById('settingsAuditDate').value = org.audit_date ? org.audit_date.slice(0, 10) : '';
+
+        if (org.name && document.getElementById('orgName')) {
+            document.getElementById('orgName').textContent = org.name;
+        }
+
+        const planName = document.getElementById('settingsPlanName');
+        if (planName) planName.textContent = planLabels[org.plan_tier] || org.plan_tier || 'Essentials';
     } catch (err) {
         console.error('Failed to load settings data:', err);
     }
@@ -2154,12 +2192,16 @@ function handleNotifSave() {
     showToast('Notification preferences saved!', 'success');
 }
 
+// Module-level store so generateReport/viewReport can access the last loaded data
+let _lastReportData = null;
+let _lastReportGaps = [];
+
 async function loadReportsData() {
     const grid = document.getElementById('reportsSummaryGrid');
     if (!grid) return;
 
     if (isDemoMode()) {
-        _renderReportsSummary({
+        _lastReportData = {
             overall_compliance_score: 94,
             compliant_standards: 18,
             critical_gaps: 1,
@@ -2168,10 +2210,12 @@ async function loadReportsData() {
             pending_documents: 0,
             audit_date: null,
             days_until_audit: null,
-        }, [
+        };
+        _lastReportGaps = [
             { severity: 'critical', title: 'Incident Response Plan Missing Key Elements', recommendation: 'Update escalation procedures within 30 days.' },
             { severity: 'high', title: 'Staff Training Records Incomplete', recommendation: '3 staff missing mandatory disability awareness certificates.' },
-        ]);
+        ];
+        _renderReportsSummary(_lastReportData, _lastReportGaps);
         return;
     }
 
@@ -2181,7 +2225,9 @@ async function loadReportsData() {
             apiFetch('/compliance/gaps').catch(() => null),
         ]);
         const gaps = gapsData ? (gapsData.gaps || gapsData) : [];
-        _renderReportsSummary(dashData || {}, Array.isArray(gaps) ? gaps : []);
+        _lastReportData = dashData || {};
+        _lastReportGaps = Array.isArray(gaps) ? gaps : [];
+        _renderReportsSummary(_lastReportData, _lastReportGaps);
     } catch (error) {
         grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:#6b7280;">Failed to load report data.</div>`;
     }
@@ -2205,7 +2251,8 @@ function _renderReportsSummary(data, gaps) {
                 <p>Total documents: <strong>${data.total_documents || 0}</strong>${data.pending_documents ? ` <span style="color:#F59E0B;">(${data.pending_documents} pending scan)</span>` : ''}</p>
             </div>
             <div class="report-actions">
-                <button class="btn btn-small" onclick="generateReport()">Export PDF</button>
+                <button class="btn btn-small" onclick="viewReport()">View Report</button>
+                <button class="btn btn-small btn-primary" onclick="generateReport()">Download PDF</button>
             </div>
         </div>
 
@@ -2548,12 +2595,159 @@ function handleIntegrationReturnFromOAuth() {
     }
 }
 
-function generateReport() {
-    if (isDemoMode()) {
-        showToast('Export is available with a real account.', 'info');
-        return;
+function viewReport() {
+    const data = _lastReportData || {};
+    const gaps = _lastReportGaps || [];
+    const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+    const orgName = document.getElementById('orgName')?.textContent || 'Your Organisation';
+    const score = data.overall_compliance_score != null ? Math.round(data.overall_compliance_score) + '%' : 'Not yet scored';
+    const scoreColor = data.overall_compliance_score == null ? '#6b7280' : data.overall_compliance_score >= 80 ? '#10B981' : data.overall_compliance_score >= 60 ? '#F59E0B' : '#EF4444';
+
+    const gapsHtml = gaps.length > 0 ? gaps.map(gap => {
+        const sev = (gap.severity || gap.risk_level || 'medium').toUpperCase();
+        const color = sev === 'CRITICAL' ? '#EF4444' : sev === 'HIGH' ? '#F59E0B' : '#3B82F6';
+        return `<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f3f4f6;">
+            <span style="background:${color}18;color:${color};padding:2px 10px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;">${sev}</span>
+            <div>
+                <p style="font-weight:600;margin:0 0 3px;">${escapeHtml(gap.title || gap.gap_description || 'Compliance Gap')}</p>
+                <p style="color:#6b7280;font-size:13px;margin:0;">${escapeHtml(gap.recommendation || gap.remediation_action || gap.details || '')}</p>
+            </div>
+        </div>`;
+    }).join('') : '<p style="color:#6b7280;padding:16px 0;">No compliance gaps found. Great work!</p>';
+
+    const auditLine = data.audit_date
+        ? `<p style="margin:6px 0;"><strong>Audit Date:</strong> ${new Date(data.audit_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}${data.days_until_audit != null ? ` <span style="color:#6b7280;">(${data.days_until_audit} days away)</span>` : ''}</p>`
+        : '';
+
+    // Build or reuse modal
+    let modal = document.getElementById('reportViewModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'reportViewModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+        modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+        document.body.appendChild(modal);
     }
-    showToast('Report export coming soon. Your compliance data is shown on-screen above.', 'info');
+
+    modal.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:680px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+            <div style="padding:24px 28px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <h2 style="margin:0;font-size:18px;color:#1b365d;">NDIS Compliance Report</h2>
+                    <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">${escapeHtml(orgName)} &nbsp;|&nbsp; ${today}</p>
+                </div>
+                <button onclick="document.getElementById('reportViewModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:#6b7280;line-height:1;">&times;</button>
+            </div>
+            <div style="padding:24px 28px;">
+                <h3 style="font-size:14px;font-weight:700;color:#374151;margin:0 0 14px;text-transform:uppercase;letter-spacing:0.5px;">Overview</h3>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
+                    <div style="text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:14px 8px;">
+                        <div style="font-size:24px;font-weight:700;color:${scoreColor};">${score}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:3px;">Overall Score</div>
+                    </div>
+                    <div style="text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:14px 8px;">
+                        <div style="font-size:24px;font-weight:700;color:#1b365d;">${data.compliant_standards || 0}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:3px;">Standards Met</div>
+                    </div>
+                    <div style="text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:14px 8px;">
+                        <div style="font-size:24px;font-weight:700;color:#1b365d;">${data.total_documents || 0}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:3px;">Documents</div>
+                    </div>
+                    <div style="text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:14px 8px;">
+                        <div style="font-size:24px;font-weight:700;color:${(data.critical_gaps || 0) > 0 ? '#EF4444' : '#10B981'};">${data.critical_gaps || 0}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:3px;">Critical Gaps</div>
+                    </div>
+                </div>
+                ${auditLine}
+                <h3 style="font-size:14px;font-weight:700;color:#374151;margin:20px 0 10px;text-transform:uppercase;letter-spacing:0.5px;">Compliance Gaps</h3>
+                ${gapsHtml}
+            </div>
+            <div style="padding:16px 28px;border-top:1px solid #f3f4f6;display:flex;justify-content:flex-end;gap:12px;">
+                <button class="btn btn-secondary" onclick="document.getElementById('reportViewModal').style.display='none'">Close</button>
+                <button class="btn btn-primary" onclick="generateReport()">Download PDF</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+function generateReport() {
+    const data = _lastReportData || {};
+    const gaps = _lastReportGaps || [];
+    const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+    const orgName = document.getElementById('orgName')?.textContent || 'Your Organisation';
+    const score = data.overall_compliance_score != null ? Math.round(data.overall_compliance_score) + '%' : 'Not yet scored';
+    const scoreColor = data.overall_compliance_score == null ? '#6b7280' : data.overall_compliance_score >= 80 ? '#10B981' : data.overall_compliance_score >= 60 ? '#F59E0B' : '#EF4444';
+
+    const gapsRows = gaps.length > 0 ? gaps.map(gap => {
+        const sev = (gap.severity || gap.risk_level || 'medium').toUpperCase();
+        const color = sev === 'CRITICAL' ? '#EF4444' : sev === 'HIGH' ? '#F59E0B' : '#3B82F6';
+        return `<tr>
+            <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;white-space:nowrap;"><span style="color:${color};font-weight:700;">${escapeHtml(sev)}</span></td>
+            <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;">${escapeHtml(gap.title || gap.gap_description || 'Compliance Gap')}</td>
+            <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:12px;">${escapeHtml(gap.recommendation || gap.remediation_action || gap.details || '')}</td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="3" style="padding:12px 10px;color:#6b7280;">No compliance gaps found.</td></tr>';
+
+    const auditSection = data.audit_date
+        ? `<p style="margin:6px 0;"><strong>Audit Date:</strong> ${new Date(data.audit_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}${data.days_until_audit != null ? ` (${data.days_until_audit} days away)` : ''}</p>`
+        : '';
+
+    const printHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Compliance Report — ${escapeHtml(orgName)}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1b365d; padding: 40px; font-size: 13px; line-height: 1.5; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; margin: 24px 0 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+        .meta { color: #6b7280; font-size: 12px; margin-bottom: 8px; }
+        .brand { color: #2a9d8f; font-weight: 700; }
+        .stats { display: flex; gap: 16px; margin: 16px 0 20px; }
+        .stat { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 20px; text-align: center; flex: 1; }
+        .stat-value { font-size: 26px; font-weight: 700; }
+        .stat-label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f9fafb; padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 11px; }
+        @media print { body { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <h1>NDIS Compliance Report</h1>
+    <p class="meta">Organisation: <strong>${escapeHtml(orgName)}</strong> &nbsp;|&nbsp; Generated: ${today}</p>
+
+    <h2>Overview</h2>
+    <div class="stats">
+        <div class="stat"><div class="stat-value" style="color:${scoreColor};">${score}</div><div class="stat-label">Overall Score</div></div>
+        <div class="stat"><div class="stat-value">${data.compliant_standards || 0}</div><div class="stat-label">Standards Met</div></div>
+        <div class="stat"><div class="stat-value">${data.total_documents || 0}</div><div class="stat-label">Documents</div></div>
+        <div class="stat"><div class="stat-value" style="color:${(data.critical_gaps || 0) > 0 ? '#EF4444' : '#10B981'};">${data.critical_gaps || 0}</div><div class="stat-label">Critical Gaps</div></div>
+    </div>
+    ${auditSection}
+
+    <h2>Compliance Gaps</h2>
+    <table>
+        <thead><tr><th>Severity</th><th>Description</th><th>Recommendation</th></tr></thead>
+        <tbody>${gapsRows}</tbody>
+    </table>
+
+    <div class="footer">
+        Generated by <span class="brand">Verida</span> &nbsp;|&nbsp; veridahq.com &nbsp;|&nbsp; ${today}
+    </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(printHTML);
+        win.document.close();
+        setTimeout(() => win.print(), 500);
+    } else {
+        showToast('Please allow pop-ups in your browser to download the PDF.', 'info');
+    }
 }
 
 // ========== UTILITIES ==========
