@@ -99,7 +99,8 @@
                 const user = await res.json();
 
                 // Persist session so app.html can use it immediately
-                localStorage.setItem('authToken', token);
+                // NOTE: app.js reads 'accessToken' — must match exactly
+                localStorage.setItem('accessToken', token);
                 if (params['refresh_token']) {
                     localStorage.setItem('refreshToken', params['refresh_token']);
                 }
