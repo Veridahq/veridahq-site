@@ -1071,7 +1071,7 @@ async function viewDocument(docId) {
                 <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
                 <div style="max-height: 200px; overflow-y: auto;">
                     ${scores.map(s => {
-                        const pct = Math.round((s.score || 0) * 100);
+                        const pct = Math.round(s.score || 0);
                         const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
                             <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
