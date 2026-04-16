@@ -567,8 +567,11 @@
                 <p>Drag and drop your document here</p>
                 <p style="font-size: 12px; color: #6b7280;">or</p>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Select File</button>
-                <input type="file" id="fileInput" style="display: none;" onchange="handleFileUpload(event)">
+                <input type="file" id="fileInput" style="display: none;" accept=".pdf,.docx,.txt" onchange="handleFileUpload(event)">
             </div>
+            <p style="font-size: 12px; color: #6b7280; text-align: center; margin-top: 8px;">
+                Accepted: PDF, DOCX, TXT &nbsp;·&nbsp; Max size: 50 MB
+            </p>
         </div>
     </div>
 
