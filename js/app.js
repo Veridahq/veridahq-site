@@ -821,7 +821,9 @@ function renderDocumentsGrid(documents) {
         const status = doc.processing_status || doc.compliance_status || doc.status || 'pending';
         let statusBadge;
 
-        if (status === 'compliant' || status === 'completed') {
+        if ((status === 'compliant' || status === 'completed') && doc.processing_error) {
+            statusBadge = '<span class="status-badge" style="background:#FEF2F2;color:#DC2626;">⚠️ AI Error</span>';
+        } else if (status === 'compliant' || status === 'completed') {
             statusBadge = '<span class="status-badge status-compliant">🟢 Compliant</span>';
         } else if (status === 'gaps_found' || status === 'at_risk') {
             statusBadge = '<span class="status-badge status-warning">🟡 Gaps Found</span>';

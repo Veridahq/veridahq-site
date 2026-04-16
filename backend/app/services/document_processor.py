@@ -104,7 +104,13 @@ async def process_document_async(
         # ----------------------------------------------------------------
         stored_text = extracted_text[:MAX_STORED_TEXT_CHARS] if extracted_text else None
 
-        supabase_admin.table("documents").update({
+        # Surface AI classification errors in processing_error so the UI can
+        # display them, rather than burying them inside the metadata JSON blob.
+        ai_error = None
+        if document_type == "unknown" and classification_confidence == 0.0 and "Classification failed" in classification_reasoning:
+            ai_error = classification_reasoning
+
+        doc_update = {
             "extracted_text": stored_text,
             "document_type": document_type,
             "metadata": {
@@ -116,7 +122,11 @@ async def process_document_async(
                     extracted_text and len(extracted_text) > MAX_STORED_TEXT_CHARS
                 ),
             },
-        }).eq("id", doc_id).execute()
+        }
+        if ai_error:
+            doc_update["processing_error"] = ai_error
+
+        supabase_admin.table("documents").update(doc_update).eq("id", doc_id).execute()
 
         _update_job_progress(job_id, 45)
 
