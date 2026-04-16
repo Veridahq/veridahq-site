@@ -224,6 +224,16 @@
                             </div>
                         </div>
 
+                        <!-- Audit Countdown (shown when audit_date is set) -->
+                        <div id="auditCountdownCard" style="display:none; background:white; border-radius:12px; padding:20px 24px; margin-bottom:20px; border-left:4px solid #F59E0B; box-shadow:0 1px 3px rgba(0,0,0,0.08); display:flex; align-items:center; gap:16px;">
+                            <div style="font-size:28px;">📅</div>
+                            <div style="flex:1;">
+                                <div style="font-size:14px; color:#6b7280; font-weight:500;">Upcoming NDIS Audit</div>
+                                <div id="auditCountdownText" style="font-size:18px; font-weight:700; color:#1b365d; margin-top:2px;">—</div>
+                            </div>
+                            <div id="auditDaysBadge" style="background:#FEF3C7; color:#92400E; padding:8px 16px; border-radius:8px; font-weight:700; font-size:16px; white-space:nowrap;">— days</div>
+                        </div>
+
                         <!-- Compliance Trend -->
                         <div class="chart-card">
                             <h3>Compliance Trend (Last 90 Days)</h3>
@@ -273,6 +283,16 @@
                             <button class="btn btn-primary" onclick="showAddClientModal()">Add Client</button>
                         </div>
 
+                        <div style="margin-bottom: 20px; display: flex; gap: 12px; align-items: center;">
+                            <input type="text" class="form-input" id="clientSearchInput" placeholder="Search by name or NDIS number…" style="max-width: 360px; margin: 0;" oninput="filterClients(this.value)">
+                            <select class="form-input" id="clientStatusFilter" style="max-width: 160px; margin: 0;" onchange="filterClients(document.getElementById('clientSearchInput').value)">
+                                <option value="">All statuses</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="exited">Exited</option>
+                            </select>
+                        </div>
+
                         <div class="clients-grid" id="clientsList">
                             <!-- Populated by loadClientsList() -->
                         </div>
@@ -289,7 +309,11 @@
                                     <h2 id="clientDetailName">Client Name</h2>
                                     <p class="subtitle" id="clientDetailNdis">NDIS Participant #</p>
                                 </div>
-                                <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div class="client-detail-status" id="clientDetailStatus">Active</div>
+                                    <button id="clientDetailEditBtn" class="btn btn-secondary btn-small">Edit</button>
+                                    <button id="clientDetailDeleteBtn" class="btn btn-small" style="color:#ef4444; border-color:#ef4444;">Delete</button>
+                                </div>
                             </div>
 
                             <div class="client-detail-grid">
@@ -366,53 +390,13 @@
                                     <tr>
                                         <th>Name</th>
                                         <th>Role</th>
-                                        <th>Disability Awareness</th>
-                                        <th>First Aid</th>
-                                        <th>NDIS Standards</th>
-                                        <th>Action</th>
+                                        <th>Email</th>
+                                        <th>Added</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>Sarah Johnson</strong></td>
-                                        <td>Compliance Officer</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-danger">✗ Expired</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Marcus Chen</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-warning">⚠ Expires Soon</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Emma Rodriguez</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-danger">✗ Missing</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>David Park</strong></td>
-                                        <td>Manager</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Lisa Thompson</strong></td>
-                                        <td>Support Worker</td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><span class="badge badge-success">✓ Current</span></td>
-                                        <td><button class="btn btn-small" onclick="showToast('Staff details coming soon.', 'info')">View</button></td>
-                                    </tr>
+                                <tbody id="staffTableBody">
+                                    <!-- Populated by loadStaffList() -->
                                 </tbody>
                             </table>
                         </div>
@@ -425,59 +409,23 @@
                         <div class="header-section">
                             <div>
                                 <h1>Reports</h1>
-                                <p class="subtitle">Generate and view compliance reports</p>
+                                <p class="subtitle">Compliance snapshot for your organisation</p>
                             </div>
-                            <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
+                            <button class="btn btn-primary" onclick="generateReport()">Export Report</button>
                         </div>
 
-                        <div class="reports-grid">
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Monthly Compliance Summary</h3>
-                                    <span class="report-date">Generated April 1, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Overall score: <strong>94%</strong></p>
-                                    <p>Standards met: <strong>18 of 20</strong></p>
-                                    <p>Critical gaps: <strong>2</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
+                        <!-- Live summary cards populated by loadReportsData() -->
+                        <div id="reportsSummaryGrid" class="reports-grid">
+                            <div style="grid-column:1/-1; text-align:center; padding:60px 20px; color:#6b7280;">
+                                <div style="font-size:40px; margin-bottom:12px;">📈</div>
+                                <p style="font-size:16px; font-weight:500;">Loading report data…</p>
                             </div>
+                        </div>
 
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Audit Readiness Assessment</h3>
-                                    <span class="report-date">Generated March 28, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Audit Readiness Score: <strong>92%</strong></p>
-                                    <p>Risk Level: <strong>Low</strong></p>
-                                    <p>Recommended Actions: <strong>3</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
-                            </div>
-
-                            <div class="report-card">
-                                <div class="report-header">
-                                    <h3>Gap Analysis Report</h3>
-                                    <span class="report-date">Generated March 20, 2024</span>
-                                </div>
-                                <div class="report-content">
-                                    <p>Total gaps identified: <strong>2</strong></p>
-                                    <p>Critical: <strong>1</strong> | High: <strong>1</strong></p>
-                                    <p>Average remediation time: <strong>5 days</strong></p>
-                                </div>
-                                <div class="report-actions">
-                                    <button class="btn btn-small" onclick="showToast('Report download coming soon.', 'info')">Download PDF</button>
-                                    <button class="btn btn-small" onclick="showToast('Full report view coming soon.', 'info')">View</button>
-                                </div>
-                            </div>
+                        <!-- Gap detail table -->
+                        <div id="reportsGapSection" style="margin-top:32px; display:none;">
+                            <h3 style="margin-bottom:16px;">Open Compliance Gaps</h3>
+                            <div id="reportsGapList"></div>
                         </div>
                     </div>
                 </div>
@@ -492,20 +440,40 @@
 
                         <div class="settings-grid">
                             <div class="settings-card">
-                                <h3>Organisation Details</h3>
-                                <form onsubmit="handleSettingsSave(event)">
+                                <h3>Profile</h3>
+                                <form id="profileSettingsForm" onsubmit="handleProfileSave(event)">
+                                    <div class="form-group">
+                                        <label class="form-label">Full Name</label>
+                                        <input type="text" class="form-input" id="settingsFullName" placeholder="Your name">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" class="form-input" id="settingsEmail" placeholder="your@email.com" disabled style="background:#f9fafb; color:#6b7280;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">New Password <span style="color:#9ca3af; font-weight:400;">(leave blank to keep)</span></label>
+                                        <input type="password" class="form-input" id="settingsNewPassword" placeholder="Min 6 characters" minlength="6">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="width:100%;">Save Profile</button>
+                                </form>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Organisation</h3>
+                                <form id="orgSettingsForm" onsubmit="handleOrgSave(event)">
                                     <div class="form-group">
                                         <label class="form-label">Organisation Name</label>
-                                        <input type="text" class="form-input" value="Sunshine Support Services" disabled>
+                                        <input type="text" class="form-input" id="settingsOrgName" placeholder="Your NDIS Provider Name">
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Current Plan</label>
-                                        <input type="text" class="form-input" value="Growth - $149/month" disabled>
+                                        <label class="form-label">NDIS Registration Number</label>
+                                        <input type="text" class="form-input" id="settingsNdisReg" placeholder="e.g., 4-XXXXXXX">
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Number of Participants</label>
-                                        <input type="text" class="form-input" value="45" disabled>
+                                        <label class="form-label">Upcoming Audit Date</label>
+                                        <input type="date" class="form-input" id="settingsAuditDate">
                                     </div>
+                                    <button type="submit" class="btn btn-primary" style="width:100%;">Save Organisation</button>
                                 </form>
                             </div>
 
@@ -513,36 +481,40 @@
                                 <h3>Notification Preferences</h3>
                                 <div class="checkbox-group">
                                     <label class="checkbox-label">
-                                        <input type="checkbox" checked>
+                                        <input type="checkbox" id="notifGaps" checked>
                                         <span>Email me on compliance gaps</span>
                                     </label>
                                     <label class="checkbox-label">
-                                        <input type="checkbox" checked>
+                                        <input type="checkbox" id="notifWeekly" checked>
                                         <span>Weekly summary reports</span>
                                     </label>
                                     <label class="checkbox-label">
-                                        <input type="checkbox">
+                                        <input type="checkbox" id="notifReminders">
                                         <span>Document upload reminders</span>
                                     </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="notifAudit" checked>
+                                        <span>Audit date reminders (30 &amp; 7 days out)</span>
+                                    </label>
+                                </div>
+                                <button class="btn btn-primary" style="width:100%; margin-top:16px;" onclick="handleNotifSave()">Save Preferences</button>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Billing &amp; Plan</h3>
+                                <div style="margin: 20px 0;">
+                                    <p style="margin: 0 0 8px 0;"><strong>Current Plan:</strong> <span id="settingsPlanName">—</span></p>
+                                    <p style="margin: 0 0 20px 0; color: #6b7280; font-size:13px;">Contact us to upgrade or change your plan.</p>
+                                    <button class="btn btn-primary" style="width: 100%;" onclick="showToast('Please contact support@veridahq.com to manage billing.', 'info')">Contact Billing Support</button>
                                 </div>
                             </div>
 
                             <div class="settings-card">
-                                <h3>Billing & Plan</h3>
+                                <h3>Data &amp; Privacy</h3>
                                 <div style="margin: 20px 0;">
-                                    <p style="margin: 0 0 12px 0;"><strong>Current Plan:</strong> Growth</p>
-                                    <p style="margin: 0 0 12px 0;"><strong>Renewal Date:</strong> May 1, 2024</p>
-                                    <p style="margin: 0 0 20px 0; color: #6b7280;">$149/month for 11-100 participants</p>
-                                    <button class="btn btn-primary" style="width: 100%;" onclick="showToast('Billing portal coming soon.', 'info')">Manage Billing</button>
-                                </div>
-                            </div>
-
-                            <div class="settings-card">
-                                <h3>Data & Privacy</h3>
-                                <div style="margin: 20px 0;">
-                                    <p style="margin: 0 0 12px 0;">Your data is encrypted and stored securely in Australian data centres.</p>
-                                    <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="showToast('Data export coming soon.', 'info')">Download Your Data</button>
-                                    <button class="btn btn-secondary" style="width: 100%;" onclick="showToast('Please contact support to delete your account.', 'info')">Delete Account</button>
+                                    <p style="margin: 0 0 12px 0; font-size:14px; color:#374151;">Your data is encrypted and stored securely in Australian data centres.</p>
+                                    <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="showToast('Data export coming soon. Contact support@veridahq.com for urgent requests.', 'info')">Download Your Data</button>
+                                    <button class="btn btn-secondary" style="width: 100%;" onclick="showToast('To delete your account, contact support@veridahq.com.', 'info')">Delete Account</button>
                                 </div>
                             </div>
                         </div>
@@ -629,6 +601,84 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button type="submit" class="btn btn-primary" style="flex: 1;">Add Client</button>
                     <button type="button" class="btn btn-secondary" onclick="closeAddClientModal()" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Client Modal -->
+    <div id="editClientModal" class="modal">
+        <div class="modal-content modal-large">
+            <button class="modal-close" onclick="closeEditClientModal()">×</button>
+            <h2>Edit Client</h2>
+            <p style="font-size: 14px; color: #6b7280; margin-bottom: 20px;">Update the client's information below</p>
+
+            <form id="editClientForm" onsubmit="handleEditClient(event)">
+                <input type="hidden" id="editClientId">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" class="form-input" id="editClientFirstName" placeholder="John" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" class="form-input" id="editClientLastName" placeholder="Smith" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Date of Birth *</label>
+                    <input type="date" class="form-input" id="editClientDob" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">NDIS Participant Number *</label>
+                    <input type="text" class="form-input" id="editClientNdisNumber" placeholder="e.g., 123456789" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="editClientEmail" placeholder="client@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-input" id="editClientPhone" placeholder="+61 2 1234 5678">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Current Plan Start Date</label>
+                        <input type="date" class="form-input" id="editClientPlanStart">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Current Plan End Date</label>
+                        <input type="date" class="form-input" id="editClientPlanEnd">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select class="form-input" id="editClientStatus">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="exited">Exited</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="editClientBehaviour">
+                        <span>Requires Behaviour Support</span>
+                    </label>
+                </div>
+
+                <div id="editClientError" style="display:none; color:#ef4444; font-size:14px; margin-bottom:12px;"></div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditClientModal()" style="flex: 1;">Cancel</button>
                 </div>
             </form>
         </div>

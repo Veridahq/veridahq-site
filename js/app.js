@@ -424,6 +424,8 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
+    if (tabName === 'settings') loadSettingsPage();
+    if (tabName === 'reports') loadReportsData();
 }
 
 // ========== CHARTS ==========
@@ -478,6 +480,8 @@ function initCharts() {
                 }]
             },
             options: {
+                // Exclude 'wheel' so mouse-wheel scrolls the page, not the chart
+                events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: true, position: 'top' } },
@@ -878,6 +882,34 @@ async function loadDashboardData() {
             document.getElementById('statDocs').textContent = totalDocs;
             updateGaugeChart(overallScore);
 
+            // Audit countdown
+            const auditCard = document.getElementById('auditCountdownCard');
+            if (dashboardData.audit_date && dashboardData.days_until_audit != null && auditCard) {
+                const days = dashboardData.days_until_audit;
+                const dateStr = new Date(dashboardData.audit_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+                document.getElementById('auditCountdownText').textContent = dateStr;
+                const badge = document.getElementById('auditDaysBadge');
+                if (days < 0) {
+                    badge.textContent = 'Overdue';
+                    badge.style.background = '#FEE2E2'; badge.style.color = '#991B1B';
+                    auditCard.style.borderLeftColor = '#EF4444';
+                } else if (days <= 30) {
+                    badge.textContent = `${days} day${days !== 1 ? 's' : ''} away`;
+                    badge.style.background = '#FEE2E2'; badge.style.color = '#991B1B';
+                    auditCard.style.borderLeftColor = '#EF4444';
+                } else if (days <= 90) {
+                    badge.textContent = `${days} days away`;
+                    badge.style.background = '#FEF3C7'; badge.style.color = '#92400E';
+                } else {
+                    badge.textContent = `${days} days away`;
+                    badge.style.background = '#D1FAE5'; badge.style.color = '#065F46';
+                    auditCard.style.borderLeftColor = '#10B981';
+                }
+                auditCard.style.display = 'flex';
+            } else if (auditCard) {
+                auditCard.style.display = 'none';
+            }
+
             // Update trend chart if trend data exists
             if (dashboardData.trend_data && dashboardData.trend_data.length > 0) {
                 const labels = dashboardData.trend_data.map(t => t.label || t.week || '');
@@ -1159,6 +1191,7 @@ async function deleteDocument(docId) {
 
     try {
         await apiFetch(`/documents/${docId}`, { method: 'DELETE' });
+        showToast('Document deleted successfully.', 'success');
         loadDocumentsList();
     } catch (error) {
         showToast('Failed to delete document: ' + error.message, 'error');
@@ -1176,6 +1209,7 @@ function viewGapRemediation(gapId) {
 // ========== CLIENTS ==========
 
 let currentClientId = null;
+let allClients = []; // full list for client-side search
 
 function showClients() {
     loadClientsList();
@@ -1213,9 +1247,31 @@ async function loadClientsList() {
     }
 }
 
-function renderClientsList(clients) {
+function filterClients(searchTerm) {
+    const status = document.getElementById('clientStatusFilter') ? document.getElementById('clientStatusFilter').value : '';
+    const term = (searchTerm || '').toLowerCase().trim();
+    let filtered = allClients;
+
+    if (term) {
+        filtered = filtered.filter(c => {
+            const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+            const ndis = (c.ndis_participant_number || '').toLowerCase();
+            return fullName.includes(term) || ndis.includes(term);
+        });
+    }
+
+    if (status) {
+        filtered = filtered.filter(c => c.status === status);
+    }
+
+    renderClientsList(filtered, false); // false = don't overwrite allClients
+}
+
+function renderClientsList(clients, storeAll = true) {
     const grid = document.getElementById('clientsList');
     if (!grid) return;
+
+    if (storeAll) allClients = clients || [];
 
     if (!clients || clients.length === 0) {
         grid.innerHTML = `
@@ -1261,6 +1317,7 @@ function renderClientsList(clients) {
                 </div>
                 <div class="client-card-footer">
                     <button class="btn btn-small" onclick="event.stopPropagation(); showClientDetail('${client.id}')">View Details</button>
+                    <button class="btn btn-small" style="color:#ef4444;" onclick="event.stopPropagation(); deleteClient('${client.id}')">Delete</button>
                 </div>
             </div>
         `;
@@ -1477,6 +1534,12 @@ function renderClientDetailView(client) {
     document.getElementById('clientDetailStatus').className = `client-detail-status ${statusClass}`;
     document.getElementById('clientDetailStatus').textContent = statusText;
 
+    // Wire edit/delete buttons in detail header
+    const editBtn = document.getElementById('clientDetailEditBtn');
+    const deleteBtn = document.getElementById('clientDetailDeleteBtn');
+    if (editBtn) editBtn.onclick = () => openEditClientModal(client);
+    if (deleteBtn) deleteBtn.onclick = () => deleteClient(client.id);
+
     document.getElementById('clientDetailDob').textContent = client.date_of_birth ? formatDate(client.date_of_birth) : '-';
     document.getElementById('clientDetailEmail').textContent = client.email ? escapeHtml(client.email) : '-';
     document.getElementById('clientDetailPhone').textContent = client.phone_number ? escapeHtml(client.phone_number) : '-';
@@ -1496,62 +1559,67 @@ function renderClientDetailView(client) {
     document.getElementById('clientDetailView').style.display = 'block';
 }
 
-function renderComplianceResults(client) {
+async function renderComplianceResults(client) {
     const resultsContainer = document.getElementById('complianceResults');
+    resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">Loading compliance checks…</p>';
 
-    // Demo compliance results
-    const results = [
-        {
-            category: 'Personal Planning & Budgeting',
-            status: 'compliant',
-            score: 95,
-            lastChecked: new Date(Date.now() - 3 * 86400000)
-        },
-        {
-            category: 'Plan Implementation',
-            status: 'compliant',
-            score: 88,
-            lastChecked: new Date(Date.now() - 5 * 86400000)
-        },
-        {
-            category: 'Incident Management',
-            status: 'at_risk',
-            score: 72,
-            lastChecked: new Date(Date.now() - 7 * 86400000)
-        },
-        {
-            category: 'Safeguarding',
-            status: 'compliant',
-            score: 92,
-            lastChecked: new Date(Date.now() - 2 * 86400000)
-        }
-    ];
-
-    if (!results || results.length === 0) {
-        resultsContainer.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No compliance checks performed yet.</p>';
+    if (isDemoMode()) {
+        const demoResults = [
+            { category: 'Personal Planning & Budgeting', status: 'passed', overall_score: 95, executed_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+            { category: 'Plan Implementation', status: 'passed', overall_score: 88, executed_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+            { category: 'Incident Management', status: 'warning', overall_score: 72, executed_at: new Date(Date.now() - 7 * 86400000).toISOString() },
+            { category: 'Safeguarding', status: 'passed', overall_score: 92, executed_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+        ];
+        _renderComplianceResultsList(resultsContainer, demoResults);
         return;
     }
 
-    resultsContainer.innerHTML = results.map(result => {
-        const statusClass = result.status === 'compliant' ? 'status-compliant' : 'status-warning';
-        const statusIcon = result.status === 'compliant' ? '🟢' : '🟡';
-        const lastCheckedText = timeAgo(result.lastChecked);
+    try {
+        const data = await apiFetch(`/clients/${client.id}/compliance-checks?limit=10`);
+        const checks = (data && data.checks) ? data.checks : [];
+        _renderComplianceResultsList(resultsContainer, checks);
+    } catch (error) {
+        resultsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load compliance checks.</p>';
+    }
+}
+
+function _renderComplianceResultsList(container, checks) {
+    if (!checks || checks.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: #6b7280;">
+                <p style="margin-bottom: 8px;">No compliance checks run yet.</p>
+                <p style="font-size: 13px;">Click "Run Compliance Check" above to start.</p>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = checks.map(check => {
+        const score = check.overall_score != null ? Math.round(check.overall_score) : null;
+        const isPassed = check.status === 'passed';
+        const isWarning = check.status === 'warning';
+        const statusClass = isPassed ? 'status-compliant' : 'status-warning';
+        const statusIcon = isPassed ? '🟢' : (isWarning ? '🟡' : '🔴');
+        const statusLabel = isPassed ? 'Passed' : (isWarning ? 'Warning' : (check.status === 'failed' ? 'Failed' : (check.status || 'Processing')));
+        const checkedText = check.executed_at ? timeAgo(new Date(check.executed_at)) : (check.created_at ? timeAgo(new Date(check.created_at)) : 'recently');
+        const label = check.category || check.check_type || 'Compliance Check';
+        const barColor = isPassed ? '#10B981' : (isWarning ? '#F59E0B' : '#EF4444');
 
         return `
             <div class="compliance-result-card">
                 <div class="compliance-result-header">
                     <div>
-                        <h4>${escapeHtml(result.category)}</h4>
-                        <p class="compliance-checked">Last checked ${lastCheckedText}</p>
+                        <h4>${escapeHtml(label)}</h4>
+                        <p class="compliance-checked">Checked ${checkedText}</p>
                     </div>
-                    <div class="status-badge ${statusClass}">${statusIcon} ${result.status === 'compliant' ? 'Compliant' : 'At Risk'}</div>
+                    <div class="status-badge ${statusClass}">${statusIcon} ${statusLabel}</div>
                 </div>
+                ${score != null ? `
                 <div class="compliance-score">
                     <div class="score-bar">
-                        <div class="score-fill" style="width: ${result.score}%; background: ${result.status === 'compliant' ? '#10B981' : '#F59E0B'};"></div>
+                        <div class="score-fill" style="width: ${score}%; background: ${barColor};"></div>
                     </div>
-                    <span class="score-text">${result.score}%</span>
-                </div>
+                    <span class="score-text">${score}%</span>
+                </div>` : ''}
             </div>
         `;
     }).join('');
@@ -1672,6 +1740,91 @@ async function handleLinkDocument(event) {
 function closeClientDetail() {
     document.getElementById('clientDetailView').style.display = 'none';
     document.getElementById('clientsList').style.display = 'grid';
+    currentClientId = null;
+}
+
+async function deleteClient(clientId) {
+    if (!confirm('Delete this client? Their record will be archived and they will no longer appear in your active list.')) return;
+
+    if (isDemoMode()) {
+        showToast('Client deleted successfully.', 'success');
+        closeClientDetail();
+        renderDemoClients();
+        return;
+    }
+
+    try {
+        await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
+        showToast('Client deleted successfully.', 'success');
+        closeClientDetail();
+        loadClientsList();
+    } catch (error) {
+        showToast('Failed to delete client: ' + error.message, 'error');
+    }
+}
+
+function openEditClientModal(client) {
+    document.getElementById('editClientId').value = client.id;
+    document.getElementById('editClientFirstName').value = client.first_name || '';
+    document.getElementById('editClientLastName').value = client.last_name || '';
+    document.getElementById('editClientDob').value = client.date_of_birth || '';
+    document.getElementById('editClientNdisNumber').value = client.ndis_participant_number || '';
+    document.getElementById('editClientEmail').value = client.email || '';
+    document.getElementById('editClientPhone').value = client.phone_number || '';
+    document.getElementById('editClientPlanStart').value = client.current_plan_start_date || '';
+    document.getElementById('editClientPlanEnd').value = client.current_plan_end_date || '';
+    document.getElementById('editClientStatus').value = client.status || 'active';
+    document.getElementById('editClientBehaviour').checked = !!client.requires_behaviour_support;
+    document.getElementById('editClientError').style.display = 'none';
+    document.getElementById('editClientModal').style.display = 'flex';
+}
+
+function closeEditClientModal() {
+    document.getElementById('editClientModal').style.display = 'none';
+}
+
+async function handleEditClient(e) {
+    e.preventDefault();
+    const clientId = document.getElementById('editClientId').value;
+    const errEl = document.getElementById('editClientError');
+    errEl.style.display = 'none';
+
+    const updateData = {
+        first_name: document.getElementById('editClientFirstName').value,
+        last_name: document.getElementById('editClientLastName').value,
+        date_of_birth: document.getElementById('editClientDob').value,
+        ndis_participant_number: document.getElementById('editClientNdisNumber').value,
+        email: document.getElementById('editClientEmail').value || null,
+        phone_number: document.getElementById('editClientPhone').value || null,
+        current_plan_start_date: document.getElementById('editClientPlanStart').value || null,
+        current_plan_end_date: document.getElementById('editClientPlanEnd').value || null,
+        status: document.getElementById('editClientStatus').value,
+        requires_behaviour_support: document.getElementById('editClientBehaviour').checked,
+    };
+
+    if (isDemoMode()) {
+        showToast('Client updated successfully!', 'success');
+        closeEditClientModal();
+        return;
+    }
+
+    try {
+        showLoading(true);
+        const updated = await apiFetch(`/clients/${clientId}`, {
+            method: 'PUT',
+            body: JSON.stringify(updateData),
+        });
+        showLoading(false);
+        showToast('Client updated successfully!', 'success');
+        closeEditClientModal();
+        // Refresh the detail view with updated data
+        if (updated) renderClientDetailView(updated);
+        loadClientsList();
+    } catch (error) {
+        showLoading(false);
+        errEl.textContent = 'Failed to update client: ' + error.message;
+        errEl.style.display = 'block';
+    }
 }
 
 async function triggerClientComplianceCheck() {
@@ -1685,11 +1838,12 @@ async function triggerClientComplianceCheck() {
     try {
         showLoading(true);
         await apiFetch(`/clients/${currentClientId}/compliance-check`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify({ check_type: 'comprehensive' }),
         });
         showLoading(false);
 
-        showToast('Compliance check completed. Refreshing results...');
+        showToast('Compliance check started. Refreshing results…');
         showClientDetail(currentClientId);
     } catch (error) {
         showLoading(false);
@@ -1747,9 +1901,17 @@ async function handleAddStaff(e) {
 }
 
 async function loadStaffList() {
-    if (isDemoMode() || !currentOrgId) {
-        return; // keep hardcoded demo data in HTML
+    if (isDemoMode()) {
+        renderStaffList([
+            { id: 'demo-1', full_name: 'Sarah Johnson', email: 'sarah.j@example.com', role: 'admin', created_at: new Date(Date.now() - 90 * 86400000).toISOString() },
+            { id: 'demo-2', full_name: 'Marcus Chen', email: 'marcus.c@example.com', role: 'member', created_at: new Date(Date.now() - 60 * 86400000).toISOString() },
+            { id: 'demo-3', full_name: 'Emma Rodriguez', email: 'emma.r@example.com', role: 'member', created_at: new Date(Date.now() - 30 * 86400000).toISOString() },
+            { id: 'demo-4', full_name: 'David Park', email: 'david.p@example.com', role: 'owner', created_at: new Date(Date.now() - 180 * 86400000).toISOString() },
+        ], 'demo-1'); // treat demo-1 as "you" for demo
+        return;
     }
+
+    if (!currentOrgId) return;
 
     try {
         const data = await apiFetch('/staff/');
@@ -1761,14 +1923,14 @@ async function loadStaffList() {
     }
 }
 
-function renderStaffList(staffMembers) {
-    const tbody = document.querySelector('.staff-table tbody');
+function renderStaffList(staffMembers, overrideSelfId) {
+    const tbody = document.getElementById('staffTableBody');
     if (!tbody) return;
 
     if (!staffMembers || staffMembers.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" style="text-align:center; padding:40px; color:#6b7280;">
+                <td colspan="5" style="text-align:center; padding:40px; color:#6b7280;">
                     No staff members yet. Add your first staff member above.
                 </td>
             </tr>
@@ -1776,24 +1938,27 @@ function renderStaffList(staffMembers) {
         return;
     }
 
-    const selfId = currentUser && currentUser.id;
+    const selfId = overrideSelfId || (currentUser && currentUser.id);
 
     tbody.innerHTML = staffMembers.map(member => {
         const name = escapeHtml(member.full_name || member.email || 'Unknown');
-        const role = escapeHtml(member.role || 'member');
+        const email = escapeHtml(member.email || '—');
+        const role = member.role || 'member';
         const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+        const addedText = member.created_at ? timeAgo(new Date(member.created_at)) : '—';
         const isSelf = member.id === selfId;
+        const safeName = name.replace(/'/g, "\\'");
+        const safeRole = role.replace(/'/g, "\\'");
         const actions = isSelf
             ? `<span style="color:#9ca3af; font-size:13px;">(you)</span>`
-            : `<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${role}','${name}')">Edit</button>
-               <button class="btn btn-small btn-danger" onclick="confirmRemoveStaff('${member.id}','${name}')">Remove</button>`;
+            : `<button class="btn btn-small" style="margin-right:6px;" onclick="openEditStaffModal('${member.id}','${safeRole}','${safeName}')">Edit Role</button>
+               <button class="btn btn-small" style="color:#ef4444;" onclick="confirmRemoveStaff('${member.id}','${safeName}')">Remove</button>`;
         return `
             <tr>
                 <td><strong>${name}</strong></td>
                 <td>${roleLabel}</td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
-                <td><span class="badge badge-warning">— Not checked</span></td>
+                <td style="color:#6b7280; font-size:13px;">${email}</td>
+                <td style="color:#6b7280; font-size:13px;">${addedText}</td>
                 <td>${actions}</td>
             </tr>
         `;
@@ -1859,13 +2024,199 @@ async function confirmRemoveStaff(userId, name) {
     }
 }
 
-function handleSettingsSave(e) {
+function loadSettingsPage() {
+    if (isDemoMode()) {
+        document.getElementById('settingsFullName').value = 'Demo User';
+        document.getElementById('settingsEmail').value = 'demo@example.com';
+        document.getElementById('settingsOrgName').value = 'Sunshine Support Services';
+        document.getElementById('settingsPlanName').textContent = 'Growth';
+        return;
+    }
+    if (!currentUser) return;
+    document.getElementById('settingsFullName').value = currentUser.full_name || '';
+    document.getElementById('settingsEmail').value = currentUser.email || '';
+    if (currentUser.organization) {
+        document.getElementById('settingsOrgName').value = currentUser.organization.name || '';
+        document.getElementById('settingsNdisReg').value = currentUser.organization.ndis_registration_number || '';
+        if (currentUser.organization.audit_date) {
+            document.getElementById('settingsAuditDate').value = currentUser.organization.audit_date.slice(0, 10);
+        }
+        document.getElementById('settingsPlanName').textContent = currentUser.organization.plan_tier || '—';
+    }
+}
+
+async function handleProfileSave(e) {
     e.preventDefault();
-    showToast('Settings updated successfully!');
+    const fullName = document.getElementById('settingsFullName').value.trim();
+    const newPassword = document.getElementById('settingsNewPassword').value;
+
+    if (isDemoMode()) { showToast('Profile updated!', 'success'); return; }
+
+    try {
+        const payload = { full_name: fullName };
+        if (newPassword) payload.password = newPassword;
+        await apiFetch('/auth/profile', { method: 'PATCH', body: JSON.stringify(payload) });
+        if (currentUser) { currentUser.full_name = fullName; localStorage.setItem('currentUser', JSON.stringify(currentUser)); }
+        // Update avatar initials
+        const initials = fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+        const avatar = document.querySelector('.navbar-right div[title="Profile"]');
+        if (avatar) avatar.textContent = initials;
+        document.getElementById('settingsNewPassword').value = '';
+        showToast('Profile saved successfully!', 'success');
+    } catch (error) {
+        showToast('Failed to save profile: ' + error.message, 'error');
+    }
+}
+
+async function handleOrgSave(e) {
+    e.preventDefault();
+    const orgName = document.getElementById('settingsOrgName').value.trim();
+    const ndisReg = document.getElementById('settingsNdisReg').value.trim();
+    const auditDate = document.getElementById('settingsAuditDate').value;
+
+    if (isDemoMode()) {
+        document.getElementById('orgName').textContent = orgName || 'Sunshine Support Services';
+        showToast('Organisation saved!', 'success');
+        return;
+    }
+
+    try {
+        const payload = {};
+        if (orgName) payload.name = orgName;
+        if (ndisReg) payload.ndis_registration_number = ndisReg;
+        if (auditDate) payload.audit_date = auditDate;
+        if (!currentOrgId) { showToast('Organisation ID not found. Try logging out and back in.', 'error'); return; }
+        await apiFetch(`/organizations/${currentOrgId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        if (orgName) document.getElementById('orgName').textContent = orgName;
+        showToast('Organisation saved successfully!', 'success');
+        // Refresh dashboard to update audit countdown
+        loadDashboardData();
+    } catch (error) {
+        showToast('Failed to save organisation: ' + error.message, 'error');
+    }
+}
+
+function handleNotifSave() {
+    showToast('Notification preferences saved!', 'success');
+}
+
+async function loadReportsData() {
+    const grid = document.getElementById('reportsSummaryGrid');
+    if (!grid) return;
+
+    if (isDemoMode()) {
+        _renderReportsSummary({
+            overall_compliance_score: 94,
+            compliant_standards: 18,
+            critical_gaps: 1,
+            high_gaps: 1,
+            total_documents: 8,
+            pending_documents: 0,
+            audit_date: null,
+            days_until_audit: null,
+        }, [
+            { severity: 'critical', title: 'Incident Response Plan Missing Key Elements', recommendation: 'Update escalation procedures within 30 days.' },
+            { severity: 'high', title: 'Staff Training Records Incomplete', recommendation: '3 staff missing mandatory disability awareness certificates.' },
+        ]);
+        return;
+    }
+
+    try {
+        const [dashData, gapsData] = await Promise.all([
+            apiFetch('/dashboard/').catch(() => null),
+            apiFetch('/compliance/gaps').catch(() => null),
+        ]);
+        const gaps = gapsData ? (gapsData.gaps || gapsData) : [];
+        _renderReportsSummary(dashData || {}, Array.isArray(gaps) ? gaps : []);
+    } catch (error) {
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:#6b7280;">Failed to load report data.</div>`;
+    }
+}
+
+function _renderReportsSummary(data, gaps) {
+    const grid = document.getElementById('reportsSummaryGrid');
+    const score = data.overall_compliance_score != null ? Math.round(data.overall_compliance_score) : null;
+    const scoreColor = score == null ? '#6b7280' : score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+    const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    grid.innerHTML = `
+        <div class="report-card">
+            <div class="report-header">
+                <h3>Compliance Overview</h3>
+                <span class="report-date">As of ${today}</span>
+            </div>
+            <div class="report-content">
+                <p>Overall score: <strong style="color:${scoreColor};">${score != null ? score + '%' : 'Not yet scored'}</strong></p>
+                <p>Standards met: <strong>${data.compliant_standards || 0}</strong></p>
+                <p>Total documents: <strong>${data.total_documents || 0}</strong>${data.pending_documents ? ` <span style="color:#F59E0B;">(${data.pending_documents} pending scan)</span>` : ''}</p>
+            </div>
+            <div class="report-actions">
+                <button class="btn btn-small" onclick="generateReport()">Export PDF</button>
+            </div>
+        </div>
+
+        <div class="report-card">
+            <div class="report-header">
+                <h3>Gap Summary</h3>
+                <span class="report-date">As of ${today}</span>
+            </div>
+            <div class="report-content">
+                <p>Critical gaps: <strong style="color:#EF4444;">${data.critical_gaps || 0}</strong></p>
+                <p>High gaps: <strong style="color:#F59E0B;">${data.high_gaps || 0}</strong></p>
+                <p>Medium / Low: <strong>${(data.medium_gaps || 0) + (data.low_gaps || 0)}</strong></p>
+            </div>
+            <div class="report-actions">
+                <button class="btn btn-small" onclick="switchTab('dashboard')">View on Dashboard</button>
+            </div>
+        </div>
+
+        <div class="report-card">
+            <div class="report-header">
+                <h3>Audit Readiness</h3>
+                <span class="report-date">As of ${today}</span>
+            </div>
+            <div class="report-content">
+                ${data.audit_date
+                    ? `<p>Audit date: <strong>${new Date(data.audit_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></p>
+                       <p>Days remaining: <strong>${data.days_until_audit != null ? data.days_until_audit : '—'}</strong></p>`
+                    : `<p style="color:#6b7280; font-size:13px;">No audit date set. Add one in <a href="#" onclick="switchTab('settings');return false;" style="color:#2a9d8f;">Settings</a>.</p>`
+                }
+                <p>Risk level: <strong>${(data.critical_gaps || 0) > 0 ? 'High' : (data.high_gaps || 0) > 0 ? 'Medium' : 'Low'}</strong></p>
+            </div>
+            <div class="report-actions">
+                <button class="btn btn-small" onclick="switchTab('settings')">Set Audit Date</button>
+            </div>
+        </div>
+    `;
+
+    // Gap detail table
+    const gapSection = document.getElementById('reportsGapSection');
+    const gapList = document.getElementById('reportsGapList');
+    if (gaps && gaps.length > 0 && gapSection && gapList) {
+        gapSection.style.display = 'block';
+        gapList.innerHTML = gaps.slice(0, 10).map(gap => {
+            const sev = (gap.severity || gap.risk_level || 'medium').toLowerCase();
+            const color = sev === 'critical' ? '#EF4444' : sev === 'high' ? '#F59E0B' : '#3B82F6';
+            return `
+                <div style="display:flex; gap:16px; align-items:flex-start; padding:14px 0; border-bottom:1px solid #f3f4f6;">
+                    <span style="background:${color}15; color:${color}; padding:3px 10px; border-radius:4px; font-size:12px; font-weight:600; white-space:nowrap;">${sev.toUpperCase()}</span>
+                    <div>
+                        <p style="font-weight:600; margin:0 0 4px;">${escapeHtml(gap.title || gap.gap_description || 'Compliance Gap')}</p>
+                        <p style="color:#6b7280; font-size:13px; margin:0;">${escapeHtml(gap.recommendation || gap.details || '')}</p>
+                    </div>
+                </div>`;
+        }).join('');
+    } else if (gapSection) {
+        gapSection.style.display = 'none';
+    }
 }
 
 function generateReport() {
-    showToast('Report generation started. Check your email in a few moments.', 'info');
+    if (isDemoMode()) {
+        showToast('Export is available with a real account.', 'info');
+        return;
+    }
+    showToast('Report export coming soon. Your compliance data is shown on-screen above.', 'info');
 }
 
 // ========== UTILITIES ==========

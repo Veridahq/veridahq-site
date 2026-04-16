@@ -309,6 +309,32 @@ async def update_password(
 
 
 # ---------------------------------------------------------------------------
+# PATCH /profile — update name (and optionally password)
+# ---------------------------------------------------------------------------
+@router.patch("/profile")
+async def update_profile(
+    request: dict,
+    auth_data: dict = Depends(get_current_user),
+):
+    """Update the current user's full_name and/or password."""
+    from pydantic import BaseModel
+    user = auth_data["user"]
+
+    full_name = request.get("full_name")
+    password = request.get("password")
+
+    if full_name:
+        supabase_admin.table("profiles").update({"full_name": full_name}).eq("id", user.id).execute()
+
+    if password:
+        if len(password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        supabase_admin.auth.admin.update_user_by_id(user.id, {"password": password})
+
+    return {"message": "Profile updated successfully"}
+
+
+# ---------------------------------------------------------------------------
 # GET /me
 # ---------------------------------------------------------------------------
 @router.get("/me", response_model=dict)
