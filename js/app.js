@@ -366,7 +366,7 @@ async function handleAuthSignUp(e) {
         showLoading(false);
 
         if (response && response.user_id) {
-            showToast('Account created! Please check your email to verify your account, then sign in.', 'success');
+            showToast('Account created! You can sign in now.', 'success');
             showLogin();
             document.getElementById('authEmail').value = email;
         }
