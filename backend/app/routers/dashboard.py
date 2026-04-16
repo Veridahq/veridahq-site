@@ -157,7 +157,10 @@ async def get_dashboard(auth_data: dict = Depends(get_current_user)):
         compliant_standards=sum(1 for s in scores_data if s["status"] == "compliant"),
         needs_attention_standards=sum(1 for s in scores_data if s["status"] == "needs_attention"),
         non_compliant_standards=sum(1 for s in scores_data if s["status"] == "non_compliant"),
-        not_assessed_standards=TOTAL_NDIS_STANDARDS - len(scores_data),
+        not_assessed_standards=(
+            sum(1 for s in scores_data if s["status"] == "not_assessed")
+            + max(0, TOTAL_NDIS_STANDARDS - len(scores_data))
+        ),
         critical_gaps=sum(1 for g in gaps_data if g["risk_level"] == "critical"),
         high_gaps=sum(1 for g in gaps_data if g["risk_level"] == "high"),
         medium_gaps=sum(1 for g in gaps_data if g["risk_level"] == "medium"),

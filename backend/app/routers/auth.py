@@ -103,7 +103,7 @@ async def sign_up(request: SignUpRequest):
         logger.info(f"New user registered: {request.email} ({user_id})")
 
         return {
-            "message": "Account created successfully. Please check your email to verify your account.",
+            "message": "Account created successfully. You can sign in immediately.",
             "user_id": user_id,
             "email": request.email,
             "organization_id": organization_id,

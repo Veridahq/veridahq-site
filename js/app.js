@@ -366,7 +366,7 @@ async function handleAuthSignUp(e) {
         showLoading(false);
 
         if (response && response.user_id) {
-            showToast('Account created! Please check your email to verify your account, then sign in.', 'success');
+            showToast('Account created! You can sign in now.', 'success');
             showLogin();
             document.getElementById('authEmail').value = email;
         }
@@ -424,7 +424,7 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
-    if (tabName === 'settings') loadSettingsPage();
+    if (tabName === 'settings') loadSettingsData();
     if (tabName === 'reports') loadReportsData();
 }
 
@@ -606,18 +606,19 @@ function renderGapList(gaps) {
     }
 
     list.innerHTML = gaps.map(gap => {
-        const severity = (gap.severity || 'medium').toUpperCase();
-        const severityClass = severity === 'CRITICAL' ? 'gap-critical' : severity === 'HIGH' ? 'gap-warning' : 'gap-info';
+        const riskLevel = (gap.risk_level || gap.severity || 'medium').toUpperCase();
+        const severityClass = riskLevel === 'CRITICAL' ? 'gap-critical' : riskLevel === 'HIGH' ? 'gap-warning' : 'gap-info';
+        const stdLabel = gap.standard_number ? `Standard ${gap.standard_number}` : '';
 
         return `
-            <div class="gap-item ${severityClass}">
-                <div class="gap-severity">${severity}</div>
+            <div class="gap-item ${severityClass}" data-gap-id="${gap.id || ''}" data-remediation="${escapeHtml(gap.remediation_action || '')}">
+                <div class="gap-severity">${riskLevel}</div>
                 <div class="gap-content">
-                    <div class="gap-title">${escapeHtml(gap.title || gap.gap_description || 'Compliance Gap')}</div>
-                    <div class="gap-detail">${escapeHtml(gap.recommendation || gap.details || '')}</div>
+                    <div class="gap-title">${escapeHtml(gap.gap_description || gap.title || 'Compliance Gap')}</div>
+                    <div class="gap-detail">${escapeHtml(stdLabel ? stdLabel + (gap.standard_title ? ' — ' + gap.standard_title : '') : (gap.details || ''))}</div>
                 </div>
                 <div class="gap-action">
-                    <button class="btn btn-small btn-primary" onclick="viewGapRemediation('${gap.id || ''}')">View Remediation</button>
+                    <button class="btn btn-small btn-primary" onclick="viewGapRemediation('${gap.id || ''}', this.closest('.gap-item'))">View Remediation</button>
                 </div>
             </div>
         `;
@@ -820,11 +821,17 @@ function renderDocumentsGrid(documents) {
         const ext = filename.split('.').pop().toLowerCase();
         const icon = iconMap[ext] || iconMap['default'];
         const date = (doc.created_at || doc.uploaded_at) ? timeAgo(new Date(doc.created_at || doc.uploaded_at)) : 'Unknown';
-        const status = doc.processing_status || doc.compliance_status || doc.status || 'pending';
+        const processingStatus = doc.processing_status || doc.status || 'pending';
+        const complianceStatus = doc.compliance_status;
+        const status = complianceStatus || processingStatus;
         let statusBadge;
 
-        if (status === 'compliant' || status === 'completed') {
+        if (doc.processing_error) {
+            statusBadge = '<span class="status-badge" style="background:#FEF2F2;color:#DC2626;">⚠️ AI Error</span>';
+        } else if (status === 'compliant') {
             statusBadge = '<span class="status-badge status-compliant">🟢 Compliant</span>';
+        } else if (processingStatus === 'completed' && !complianceStatus) {
+            statusBadge = '<span class="status-badge" style="background:#F0FDF4;color:#16A34A;">✅ Processed</span>';
         } else if (status === 'gaps_found' || status === 'at_risk') {
             statusBadge = '<span class="status-badge status-warning">🟡 Gaps Found</span>';
         } else if (status === 'processing') {
@@ -1098,20 +1105,23 @@ async function viewDocument(docId) {
 
         // Build scores HTML
         let scoresHtml = '';
-        if (scores.length > 0) {
+        const allZero = scores.length > 0 && scores.every(s => !s.score || s.score === 0);
+        if (scores.length > 0 && !allZero) {
             scoresHtml = `
                 <h4 style="margin: 16px 0 8px; font-size: 14px; font-weight: 600;">Compliance Scores</h4>
                 <div style="max-height: 200px; overflow-y: auto;">
                     ${scores.map(s => {
-                        const pct = Math.round((s.score || 0) * 100);
+                        const pct = Math.round(s.score || 0);
                         const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
                         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f3f4f6;">
-                            <span style="font-size:13px;">${escapeHtml(s.standard_name || s.standard_id || 'Standard')}</span>
+                            <span style="font-size:13px;">${escapeHtml(s.standard_title ? (s.standard_number ? s.standard_number + ': ' + s.standard_title : s.standard_title) : s.standard_number || s.standard_id || 'Standard')}</span>
                             <span style="font-weight:600;color:${color};">${pct}%</span>
                         </div>`;
                     }).join('')}
                 </div>
             `;
+        } else if (allZero) {
+            scoresHtml = '<p style="color:#6b7280;font-size:13px;margin-top:12px;">Not Assessed — no compliance scores have been recorded for this document.</p>';
         } else if (statusLabel === 'completed') {
             scoresHtml = '<p style="color:#6b7280;font-size:13px;margin-top:12px;">No compliance scores recorded for this document.</p>';
         }
@@ -1198,12 +1208,42 @@ async function deleteDocument(docId) {
     }
 }
 
-function viewGapRemediation(gapId) {
+function viewGapRemediation(gapId, gapEl) {
     if (isDemoMode() || !gapId) {
         showToast('Detailed remediation steps will be available after uploading and scanning your documents.', 'info');
         return;
     }
-    showToast('Remediation details coming soon.', 'info');
+
+    // Read remediation_action stored on the element by renderGapList
+    const remediation = gapEl ? gapEl.dataset.remediation : null;
+    const description = gapEl ? gapEl.querySelector('.gap-title')?.textContent : null;
+
+    if (!remediation) {
+        showToast('No remediation action recorded for this gap.', 'info');
+        return;
+    }
+
+    // Show in a simple modal overlay
+    const existing = document.getElementById('remediationOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'remediationOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:520px;width:90%;padding:24px;max-height:80vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;">Remediation Action</h3>
+                <button onclick="document.getElementById('remediationOverlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280;">&times;</button>
+            </div>
+            ${description ? `<p style="font-size:13px;color:#374151;font-weight:500;margin-bottom:12px;">${escapeHtml(description)}</p>` : ''}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;">
+                <p style="margin:0;font-size:14px;color:#166534;line-height:1.6;">${escapeHtml(remediation)}</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 }
 
 // ========== CLIENTS ==========
@@ -1565,25 +1605,25 @@ async function renderComplianceResults(client) {
 
     if (isDemoMode()) {
         const demoResults = [
-            { category: 'Personal Planning & Budgeting', status: 'passed', overall_score: 95, executed_at: new Date(Date.now() - 3 * 86400000).toISOString() },
-            { category: 'Plan Implementation', status: 'passed', overall_score: 88, executed_at: new Date(Date.now() - 5 * 86400000).toISOString() },
-            { category: 'Incident Management', status: 'warning', overall_score: 72, executed_at: new Date(Date.now() - 7 * 86400000).toISOString() },
-            { category: 'Safeguarding', status: 'passed', overall_score: 92, executed_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+            { check_type: 'Personal Planning & Budgeting', status: 'passed', overall_score: 95, created_at: new Date(Date.now() - 3 * 86400000).toISOString(), findings: [] },
+            { check_type: 'Plan Implementation', status: 'passed', overall_score: 88, created_at: new Date(Date.now() - 5 * 86400000).toISOString(), findings: [] },
+            { check_type: 'Incident Management', status: 'warning', overall_score: 72, created_at: new Date(Date.now() - 7 * 86400000).toISOString(), findings: [] },
+            { check_type: 'Safeguarding', status: 'passed', overall_score: 92, created_at: new Date(Date.now() - 2 * 86400000).toISOString(), findings: [] },
         ];
-        _renderComplianceResultsList(resultsContainer, demoResults);
+        _renderComplianceCheckCards(resultsContainer, demoResults);
         return;
     }
 
     try {
         const data = await apiFetch(`/clients/${client.id}/compliance-checks?limit=10`);
         const checks = (data && data.checks) ? data.checks : [];
-        _renderComplianceResultsList(resultsContainer, checks);
+        _renderComplianceCheckCards(resultsContainer, checks);
     } catch (error) {
         resultsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 20px;">Failed to load compliance checks.</p>';
     }
 }
 
-function _renderComplianceResultsList(container, checks) {
+function _renderComplianceCheckCards(container, checks) {
     if (!checks || checks.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 30px; color: #6b7280;">
@@ -1594,32 +1634,34 @@ function _renderComplianceResultsList(container, checks) {
     }
 
     container.innerHTML = checks.map(check => {
-        const score = check.overall_score != null ? Math.round(check.overall_score) : null;
         const isPassed = check.status === 'passed';
-        const isWarning = check.status === 'warning';
-        const statusClass = isPassed ? 'status-compliant' : 'status-warning';
-        const statusIcon = isPassed ? '🟢' : (isWarning ? '🟡' : '🔴');
-        const statusLabel = isPassed ? 'Passed' : (isWarning ? 'Warning' : (check.status === 'failed' ? 'Failed' : (check.status || 'Processing')));
+        const isFailed = check.status === 'failed';
+        const statusClass = isPassed ? 'status-compliant' : isFailed ? 'status-non-compliant' : 'status-warning';
+        const statusIcon = isPassed ? '🟢' : isFailed ? '🔴' : '🟡';
+        const statusText = isPassed ? 'Passed' : isFailed ? 'Failed' : check.status === 'processing' ? 'Processing...' : 'Warning';
+        const score = check.overall_score != null ? Math.round(check.overall_score) : null;
+        const scoreBar = score != null ? `
+            <div class="compliance-score">
+                <div class="score-bar">
+                    <div class="score-fill" style="width: ${score}%; background: ${isPassed ? '#10B981' : isFailed ? '#EF4444' : '#F59E0B'};"></div>
+                </div>
+                <span class="score-text">${score}%</span>
+            </div>` : '';
+        const findingCount = (check.findings || []).length;
+        const findingsNote = findingCount > 0 ? `<p style="font-size:12px;color:#6b7280;margin:4px 0 0;">${findingCount} finding${findingCount !== 1 ? 's' : ''}</p>` : '';
         const checkedText = check.executed_at ? timeAgo(new Date(check.executed_at)) : (check.created_at ? timeAgo(new Date(check.created_at)) : 'recently');
-        const label = check.category || check.check_type || 'Compliance Check';
-        const barColor = isPassed ? '#10B981' : (isWarning ? '#F59E0B' : '#EF4444');
 
         return `
             <div class="compliance-result-card">
                 <div class="compliance-result-header">
                     <div>
-                        <h4>${escapeHtml(label)}</h4>
-                        <p class="compliance-checked">Checked ${checkedText}</p>
+                        <h4>${escapeHtml(check.check_type || check.category || 'Compliance Check')}</h4>
+                        <p class="compliance-checked">Run ${checkedText}</p>
+                        ${findingsNote}
                     </div>
-                    <div class="status-badge ${statusClass}">${statusIcon} ${statusLabel}</div>
+                    <div class="status-badge ${statusClass}">${statusIcon} ${statusText}</div>
                 </div>
-                ${score != null ? `
-                <div class="compliance-score">
-                    <div class="score-bar">
-                        <div class="score-fill" style="width: ${score}%; background: ${barColor};"></div>
-                    </div>
-                    <span class="score-text">${score}%</span>
-                </div>` : ''}
+                ${scoreBar}
             </div>
         `;
     }).join('');
@@ -1839,7 +1881,7 @@ async function triggerClientComplianceCheck() {
         showLoading(true);
         await apiFetch(`/clients/${currentClientId}/compliance-check`, {
             method: 'POST',
-            body: JSON.stringify({ check_type: 'comprehensive' }),
+            body: JSON.stringify({ check_type: 'comprehensive' })
         });
         showLoading(false);
 
@@ -2024,28 +2066,40 @@ async function confirmRemoveStaff(userId, name) {
     }
 }
 
-function loadSettingsPage() {
+async function loadSettingsData() {
     if (isDemoMode()) {
-        document.getElementById('settingsFullName').value = 'Demo User';
-        document.getElementById('settingsEmail').value = 'demo@example.com';
-        document.getElementById('settingsOrgName').value = 'Sunshine Support Services';
-        document.getElementById('settingsPlanName').textContent = 'Growth';
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        setEl('settingsFullName', 'Demo User');
+        setEl('settingsEmail', 'demo@example.com');
+        setEl('settingsOrgName', 'Sunshine Support Services');
+        setEl('settingsPlanTier', 'Growth — $149/month');
         return;
     }
-    if (!currentUser) return;
-    document.getElementById('settingsFullName').value = currentUser.full_name || '';
-    document.getElementById('settingsEmail').value = currentUser.email || '';
-    if (currentUser.organization) {
-        document.getElementById('settingsOrgName').value = currentUser.organization.name || '';
-        document.getElementById('settingsNdisReg').value = currentUser.organization.ndis_registration_number || '';
-        if (currentUser.organization.audit_date) {
-            document.getElementById('settingsAuditDate').value = currentUser.organization.audit_date.slice(0, 10);
-        }
-        document.getElementById('settingsPlanName').textContent = currentUser.organization.plan_tier || '—';
+
+    try {
+        const me = await apiFetch('/auth/me');
+        const org = me.organization || {};
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || 'Not set';
+        };
+
+        const setInput = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        setInput('settingsFullName', me.full_name);
+        setInput('settingsEmail', me.email);
+
+        const planLabels = { essentials: 'Essentials — $49/month', growth: 'Growth — $149/month', scale: 'Scale — $349/month' };
+        setVal('settingsOrgName', org.name);
+        setVal('settingsPlanTier', planLabels[org.plan_tier] || org.plan_tier || 'Essentials');
+        setVal('settingsNdisReg', org.ndis_registration_number);
+        setVal('settingsAuditDate', org.audit_date ? new Date(org.audit_date).toLocaleDateString('en-AU') : null);
+    } catch (err) {
+        console.error('Failed to load settings data:', err);
     }
 }
 
-async function handleProfileSave(e) {
+async function handleSettingsSave(e) {
     e.preventDefault();
     const fullName = document.getElementById('settingsFullName').value.trim();
     const newPassword = document.getElementById('settingsNewPassword').value;
