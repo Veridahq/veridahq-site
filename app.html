@@ -496,15 +496,19 @@
                                 <form onsubmit="handleSettingsSave(event)">
                                     <div class="form-group">
                                         <label class="form-label">Organisation Name</label>
-                                        <input type="text" class="form-input" value="Sunshine Support Services" disabled>
+                                        <input type="text" id="settingsOrgName" class="form-input" value="Loading..." disabled>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Current Plan</label>
-                                        <input type="text" class="form-input" value="Growth - $149/month" disabled>
+                                        <input type="text" id="settingsPlanTier" class="form-input" value="Loading..." disabled>
                                     </div>
                                     <div class="form-group">
-                                        <label class="form-label">Number of Participants</label>
-                                        <input type="text" class="form-input" value="45" disabled>
+                                        <label class="form-label">NDIS Registration Number</label>
+                                        <input type="text" id="settingsNdisReg" class="form-input" value="Not set" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Audit Date</label>
+                                        <input type="text" id="settingsAuditDate" class="form-input" value="Not set" disabled>
                                     </div>
                                 </form>
                             </div>

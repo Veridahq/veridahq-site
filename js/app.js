@@ -424,6 +424,7 @@ function switchTab(tabName) {
 
     if (tabName === 'clients') loadClientsList();
     if (tabName === 'staff') loadStaffList();
+    if (tabName === 'settings') loadSettingsData();
 }
 
 // ========== CHARTS ==========
@@ -1896,6 +1897,28 @@ async function confirmRemoveStaff(userId, name) {
     } catch (error) {
         showLoading(false);
         showToast('Failed to remove staff member: ' + error.message, 'error');
+    }
+}
+
+async function loadSettingsData() {
+    if (isDemoMode()) return;
+
+    try {
+        const me = await apiFetch('/auth/me');
+        const org = me.organization || {};
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val || 'Not set';
+        };
+
+        const planLabels = { essentials: 'Essentials — $49/month', growth: 'Growth — $149/month', scale: 'Scale — $349/month' };
+        setVal('settingsOrgName', org.name || me.full_name);
+        setVal('settingsPlanTier', planLabels[org.plan_tier] || org.plan_tier || 'Essentials');
+        setVal('settingsNdisReg', org.ndis_registration_number);
+        setVal('settingsAuditDate', org.audit_date ? new Date(org.audit_date).toLocaleDateString('en-AU') : null);
+    } catch (err) {
+        console.error('Failed to load settings data:', err);
     }
 }
 
