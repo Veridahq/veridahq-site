@@ -1685,7 +1685,8 @@ async function triggerClientComplianceCheck() {
     try {
         showLoading(true);
         await apiFetch(`/clients/${currentClientId}/compliance-check`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify({ check_type: 'comprehensive' })
         });
         showLoading(false);
 
